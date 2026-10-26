@@ -32,16 +32,26 @@ Checks exercise:
 
 `file` identifies the target binary as statically linked ARM aarch64 ELF. The host binary is static x86-64 ELF. Neither result claims execution on the router. GitHub Actions is configured, but no remote CI run is claimed.
 
-## Required hardware gate (not performed)
+## Hardware gate — partially verified on AX3000T
 
-Follow the SSH commands in README.md using the actual authorized router address. Confirm:
+Executed via authorized SSH on the actual AX3000T/OpenWrt 24.10.2, with the test binary, state and logs confined to a private directory in `/tmp`:
 
-1. OpenWrt 24.10.2 accepts the static ARM64 binary and real `get_clients` matches the parser.
-2. Subscription event JSON is one object per line and remains alive when idle.
-3. Phone probes never add/alert; a genuinely new authorization creates one log promptly.
-4. Reconnect/band roaming does not rediscover a known device.
-5. Graceful daemon restart preserves identities; hostapd restart/Wi-Fi reload recovers subscriptions.
-6. Radio/AP disable updates online state; no Ethernet client is imported.
-7. Durable `/etc` writes work on the real flash filesystem at acceptable resource usage.
+- Verified uploaded binary SHA-256 and native ARM64 execution.
+- Both real AP snapshots provide boolean `authorized`; 14 authorized Wi-Fi clients were silently imported with zero `new_device` logs.
+- Gracefully stopped/restarted only the test daemon: all registry identities were retained, no rediscovery alerts.
+- Terminated only its owned `ubus subscribe` child (not ubus/hostapd services): the daemon resubscribed without new-device logs.
+- Captured real JSON-line notifications during the user's phone reconnect: 47 probes, two disassociations, one inactive-deauth, one auth, one assoc and one successful authorization; zero malformed lines.
+- Matched the authorized phone to registry `disconnected` then `connected` history; registry remained at 14 devices with zero `new_device` logs. Probe/pre-authorization traffic did not add devices.
+- Measured daemon RSS at approximately 4–6 MiB during these observations, with `GOMEMLIMIT=12MiB` and `GOGC=50`. This is a short-run observation, not a long-term memory bound.
+- Read back unchanged hashes of network, wireless, firewall, DHCP and system configuration; WAN remained up. No network/Wi-Fi/firewall service was reloaded or restarted.
 
-No router login, file upload, firmware/config change, Telegram request, LuCI installation, procd enable or `.ipk` installation has been performed. Full-product acceptance (Telegram/LuCI/packaging) remains open.
+Access bootstrap used a user-approved temporary SSH public key installed through authenticated LuCI. That key must be removed after the hardware test session completes. Private MACs, raw logs, credentials and addresses are not included in this repository.
+
+### Still open
+
+1. A previously unseen registry identity authorized on real hardware must create exactly one `new_device` log. Use an isolated test-state copy, not a reset of the original registry or phone MAC settings.
+2. Band roaming, actual hostapd/Wi-Fi reload and full AP removal are not hardware-tested. These disruptive operations are deliberately prohibited on the user's live Internet connection unless separately approved.
+3. Durable `/etc` writes and long-run flash/RAM behavior remain untested; all daemon state writes so far are in RAM-backed `/tmp`.
+4. Telegram delivery, protected LuCI integration, procd lifecycle and official `.ipk` installation remain future phases; no Telegram request, service installation or firmware change has been performed.
+
+See README.md for manual commands. Local automated tests do not close the remaining hardware/product criteria.
