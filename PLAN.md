@@ -20,4 +20,4 @@ Phase A is not the full product: Telegram, LuCI, procd and .ipk delivery are int
 
 ## Current status
 
-Phase A implementation and local validation are complete, including regression fixes from independent review. The real AX3000T gate remains open. See `docs/verification.md` for executed checks and exact hardware steps; do not start router deployment or declare full-product acceptance from host tests alone.
+Phase A implementation and local validation are complete, including regression fixes from independent review. Non-disruptive AX3000T checks passed, including real phone authorization, known-client deduplication, and one new-device discovery using an isolated registry. The disruptive reload/roaming and persistent-installation portions of the hardware gate remain open. See `docs/verification.md` for executed checks and exact hardware steps; do not start router deployment or declare full-product acceptance from host tests alone.
