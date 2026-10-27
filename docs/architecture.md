@@ -16,6 +16,12 @@ Telegram delivery is an injected nonblocking alert callback. A bounded worker qu
 
 ## UCI and secret handling
 
+### Optional DHCP hostname hints
+
+A separate cancellable worker reads `uci -q -c <config-dir> export dhcp` and the regular `/tmp/dhcp.leases` file without changing DHCP/DNS or making network lookups. Each source is limited to 1 MiB, subprocess runtime to two seconds. Static host names take precedence over active leases; invalid names/MACs and expired leases are ignored. The default refresh interval is 15 seconds. Failed refreshes keep the bounded cache for at most two minutes, never beyond a lease's own expiry.
+
+Only the registry owner copies hints onto already known Wi-Fi entries. Metadata refreshes cannot create wired devices, authorize clients, change trust/deny policy or send discovery notifications. Changes use ordinary dirty-state batching. `hostname` is a separate optional JSON field; `friendly_name` remains exclusively operator-controlled. LuCI and Telegram prefer the manual name over hostname; an empty manual name restores hostname fallback. Hostnames are untrusted hints, not proof of identity. Alerts do not wait for DHCP; a late lease may appear in the UI on the next refresh without resending the original alert.
+
 `internal/config` reads only named application options using fixed argv and bounded output. Writes use stdin batch commands inside a private staging directory and private UCI delta path; staged values are read back, restricted to 0600, synced and atomically published. Only this application's file is changed. Empty credential options can disappear under libuci and are treated as empty; the enabled flag remains mandatory. External concurrent UCI writers require coordination.
 
 No endpoint/transport override is exposed in UCI or RPC: production Telegram uses official HTTPS, with redirects disabled and error redaction at the HTTP boundary. The public settings response contains enabled/chat_id/token_set only. The UI never reloads or reads back the token. A typed post-publication configuration error immediately pauses old delivery. Readback alignment uses a fresh, bounded service-lifetime context rather than an expired RPC context. If current disk state cannot be recovered, delivery pauses and public settings fail closed until a successful reconfiguration/readback or application restart; an uncertain save is never reported as confirmed.

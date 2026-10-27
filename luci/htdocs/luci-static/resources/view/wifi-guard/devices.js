@@ -26,7 +26,8 @@ return view.extend({
 	editName: function(device) {
 		var self = this;
 		var input = E('input', { type: 'text', maxlength: 80, 'class': 'cbi-input-text', value: device.friendly_name || '' });
-		ui.showModal(_('Rename Wi-Fi device'), [E('p', {}, [device.mac]), input,
+		ui.showModal(_('Rename Wi-Fi device'), [E('p', {}, [device.mac]),
+			E('p', {}, [_('Set a manual name. Leave empty to use the hostname when available.')]), input,
 			E('div', { 'class': 'right' }, [E('button', { 'class': 'btn', click: ui.hideModal }, [_('Cancel')]), ' ',
 				E('button', { 'class': 'btn cbi-button-positive', click: function(event) {
 					var button = event.currentTarget; button.disabled = true;
@@ -52,7 +53,7 @@ return view.extend({
 		var query = (this.search.value || '').toLocaleLowerCase();
 		var filter = this.filter.value;
 		var list = all.filter(function(d) {
-			return (!query || [d.mac, d.friendly_name, d.last_interface].some(function(v) { return String(v || '').toLocaleLowerCase().indexOf(query) !== -1; })) &&
+			return (!query || [d.mac, d.friendly_name, d.hostname, d.last_interface].some(function(v) { return String(v || '').toLocaleLowerCase().indexOf(query) !== -1; })) &&
 				(filter === 'all' || (filter === 'online' && d.online) || (filter === 'offline' && !d.online) ||
 				(filter === 'trusted' && d.trust === 'trusted') || (filter === 'denied' && d.desired_deny));
 		});
@@ -63,14 +64,14 @@ return view.extend({
 		list.forEach(function(d) {
 			var denied = !!d.desired_deny || d.trust === 'blocked';
 			var label = denied ? (d.policy_pending ? _('Deny requested — application pending') : _('MAC deny applied')) :
-				(d.policy_pending ? _('Unblock pending — inspect policy status') : (d.trust === 'trusted' ? _('Trusted') : _('Unknown')));
+				(d.policy_pending ? _('Unblock pending — inspect policy status') : (d.trust === 'trusted' ? _('Trusted') : _('Trust not set')));
 			var actions = E('td', {}, [E('span', {}, [label])]);
 			if (!self.readonly) {
 				actions.appendChild(E('div', {}, [
 					E('button', { 'class': 'btn cbi-button-edit', click: function() { self.editName(d); } }, [_('Rename')]), ' ',
 					E('button', { 'class': 'btn', disabled: denied || d.policy_pending || null, click: function() {
 						return self.notify(trust(d.mac, d.trust === 'trusted' ? 'unknown' : 'trusted'), _('Trust updated. No network access policy was changed.'));
-					} }, [d.trust === 'trusted' ? _('Mark unknown') : _('Trust')])
+					} }, [d.trust === 'trusted' ? _('Clear trust') : _('Trust')])
 				]));
 				if (d.desired_deny) actions.appendChild(E('button', { 'class': 'btn cbi-button-positive', click: function() {
 				ui.showModal(_('Remove WiFi Guard MAC deny'), [
@@ -87,7 +88,7 @@ return view.extend({
 			} }, [_('Unblock')]));
 			}
 			table.appendChild(E('tr', { 'class': 'tr' }, [
-				E('td', {}, [E('strong', {}, [d.friendly_name || _('Unnamed device')]), E('br'), E('code', {}, [d.mac])]),
+				E('td', {}, [E('strong', {}, [d.friendly_name || d.hostname || _('Unnamed device')]), E('br'), E('code', {}, [d.mac])]),
 				E('td', {}, [d.online ? _('Online') : _('Offline'), E('br'), E('small', {}, [d.last_interface || ''])]),
 				cell(timestamp(d.first_seen)), cell(timestamp(d.last_seen)), actions]));
 		});

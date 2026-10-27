@@ -84,8 +84,8 @@ msgstr "MAC"
 msgid "MAC deny applied"
 msgstr "Блокировка MAC применена"
 
-msgid "Mark unknown"
-msgstr "Снять доверие"
+msgid "Clear trust"
+msgstr "Снять отметку доверия"
 
 msgid "Monitor unavailable. Start wifi-guard and refresh this page."
 msgstr "Монитор недоступен. Запустите wifi-guard и обновите страницу."
@@ -213,8 +213,8 @@ msgstr "Разблокировка ожидается — проверьте с�
 msgid "Unblock was recorded, but application is not confirmed. Check policy status."
 msgstr "Разблокировка записана, но применение не подтверждено. Проверьте состояние политики."
 
-msgid "Unknown"
-msgstr "Неизвестное"
+msgid "Trust not set"
+msgstr "Доверие не задано"
 
 msgid "Unnamed device"
 msgstr "Без имени"
@@ -248,3 +248,6 @@ msgstr "Подключено"
 
 msgid "Disconnected"
 msgstr "Отключено"
+
+msgid "Set a manual name. Leave empty to use the hostname when available."
+msgstr "Задайте имя вручную. Оставьте поле пустым, чтобы использовать имя хоста, если оно доступно."

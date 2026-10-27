@@ -10,6 +10,7 @@ import (
 	"openwrt-wifi-guard/internal/app"
 	"openwrt-wifi-guard/internal/config"
 	"openwrt-wifi-guard/internal/devices"
+	"openwrt-wifi-guard/internal/hostnames"
 	"openwrt-wifi-guard/internal/monitor"
 	"openwrt-wifi-guard/internal/policy"
 	"openwrt-wifi-guard/internal/rpc"
@@ -113,7 +114,7 @@ func run() error {
 		*policyPath = filepath.Join(filepath.Dir(*state), "policy.json")
 	}
 	commands := make(chan rpc.Command, 16)
-	options := app.Options{Registry: r, Store: store, Save: save, Logger: log, Commands: commands, Actions: *actions, AllowBlocking: *blocking, ProtectedMACs: protected}
+	options := app.Options{Registry: r, Store: store, Save: save, Logger: log, Commands: commands, Actions: *actions, AllowBlocking: *blocking, ProtectedMACs: protected, Hostnames: hostnames.Local{UCI: *uci, ConfigDir: *uciDir, Timeout: *timeout}}
 	_, policyErr := os.Lstat(*policyPath)
 	if *blocking || policyErr == nil {
 		engine, err := policy.Open(policy.Options{Path: *policyPath, ConfigDir: *uciDir, UCI: *uci, UBus: *ubus, ControlDir: *controlDir, ProtectedMACs: protected})

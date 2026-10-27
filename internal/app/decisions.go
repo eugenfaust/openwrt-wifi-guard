@@ -81,6 +81,7 @@ func credentialScope(c config.Settings) string {
 // PrepareAlert runs on the registry owner before the monitor durably saves the
 // new device. Alert only publishes the already saved review; it never creates it.
 func (s *Service) PrepareAlert(e devices.Event) error {
+	s.enrichHostnames()
 	s.configMu.RLock()
 	c, uncertain := s.settings, s.configUncertain
 	s.configMu.RUnlock()
@@ -158,7 +159,7 @@ func (s *Service) decisionResult(d devices.Device, text string) telegram.ActionR
 	sender := s.sender
 	s.configMu.RUnlock()
 	keys, _ := s.reviewKeyboard(sender, d)
-	return telegram.ActionResult{Text: text, Name: d.FriendlyName, Keyboard: keys}
+	return telegram.ActionResult{Text: text, Name: d.DisplayName(), Keyboard: keys}
 }
 
 // persistDevice restores only an unpublished mutation. Possibly published state

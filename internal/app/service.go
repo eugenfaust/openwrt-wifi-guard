@@ -15,6 +15,7 @@ import (
 
 	"openwrt-wifi-guard/internal/config"
 	"openwrt-wifi-guard/internal/devices"
+	"openwrt-wifi-guard/internal/hostnames"
 	"openwrt-wifi-guard/internal/rpc"
 	"openwrt-wifi-guard/internal/telegram"
 )
@@ -29,18 +30,20 @@ type Sender interface {
 	SendTest(context.Context) error
 }
 type Options struct {
-	Registry        *devices.Registry
-	Store           Store
-	Save            func(devices.State) error
-	Logger          *slog.Logger
-	NewSender       func(config.Settings) (Sender, error)
-	Commands        chan rpc.Command
-	Actions         bool
-	AllowBlocking   bool
-	PolicySet       func(context.Context, string, bool) (bool, bool, error)
-	PolicyStatus    func(string) (bool, bool)
-	PolicyReconcile func(context.Context) error
-	ProtectedMACs   []string
+	Registry         *devices.Registry
+	Store            Store
+	Save             func(devices.State) error
+	Logger           *slog.Logger
+	NewSender        func(config.Settings) (Sender, error)
+	Commands         chan rpc.Command
+	Actions          bool
+	AllowBlocking    bool
+	PolicySet        func(context.Context, string, bool) (bool, bool, error)
+	PolicyStatus     func(string) (bool, bool)
+	PolicyReconcile  func(context.Context) error
+	ProtectedMACs    []string
+	Hostnames        hostnames.Provider
+	HostnameInterval time.Duration
 }
 type Service struct {
 	registry         *devices.Registry
@@ -71,6 +74,10 @@ type Service struct {
 	// Registry-owner-only durability and in-flight policy reservations.
 	decisionsUncertain bool
 	policyActive       map[string]uint64
+	hostnameMu         sync.RWMutex
+	hostnameCache      map[string]hostnames.Hint
+	hostnameUntil      time.Time
+	hostnameWake       chan struct{}
 }
 
 var errRequest = errors.New("invalid or unavailable operation")
@@ -82,7 +89,7 @@ func New(parent context.Context, o Options) (*Service, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	if (o.Actions || o.PolicySet != nil || o.PolicyReconcile != nil) && o.Commands == nil {
+	if (o.Actions || o.PolicySet != nil || o.PolicyReconcile != nil || o.Hostnames != nil) && o.Commands == nil {
 		return nil, errors.New("decision owner queue required")
 	}
 	settings, err := o.Store.Load(parent)
@@ -127,6 +134,13 @@ func New(parent context.Context, o Options) (*Service, error) {
 		s.wg.Add(1)
 		go s.policyLoop(initial)
 	}
+	if o.Hostnames != nil {
+		// Persisted hints are not evidence of a still-active DHCP lease.
+		s.enrichHostnames()
+		s.hostnameWake = make(chan struct{}, 1)
+		s.wg.Add(1)
+		go s.hostnameLoop(o.Hostnames, o.HostnameInterval)
+	}
 	return s, nil
 }
 func (s *Service) prepare(c config.Settings) (Sender, error) {
@@ -163,12 +177,17 @@ func (s *Service) apply(c config.Settings, n Sender) {
 // Close is called only after the registry owner loop has stopped.
 func (s *Service) Close() { s.cancel(); s.wg.Wait() }
 func (s *Service) Alert(e devices.Event) {
+	s.enrichHostnames()
+	select {
+	case s.hostnameWake <- struct{}{}:
+	default:
+	}
 	s.configMu.RLock()
 	sender := s.sender
 	s.configMu.RUnlock()
 	m := telegram.Message{MAC: e.MAC, At: e.At, Interface: e.Interface}
 	if d := s.registry.State.Devices[e.MAC]; d != nil {
-		m.Name = d.FriendlyName
+		m.Name = d.DisplayName()
 	}
 	if s.actions && sender != nil {
 		if d := s.registry.State.Devices[e.MAC]; d != nil && d.ReviewNonce != 0 {
@@ -211,7 +230,11 @@ func (s *Service) Handle(c rpc.Command) {
 			return
 		}
 		switch c.Method {
+		case "_hostnames_refresh":
+			s.enrichHostnames()
+			c.Reply <- rpc.Result{Value: true}
 		case "_telegram_action":
+			s.enrichHostnames()
 			s.startAction(c)
 		case "_policy_check":
 			value, err := s.checkPolicy(c.Params)
@@ -254,6 +277,7 @@ func (s *Service) Handle(c rpc.Command) {
 func (s *Service) handle(ctx context.Context, method string, data json.RawMessage) (any, error) {
 	switch method {
 	case "devices":
+		s.enrichHostnames()
 		if decode(data, &struct{}{}) != nil {
 			return nil, errRequest
 		}

@@ -10,6 +10,7 @@ Router-native detection of newly authorized Wi-Fi clients, Telegram alerts, and 
 - Successful `sta-authorized` events and periodic `get_clients` reconciliation; probes/auth/assoc alone never add devices.
 - Silent first-run import, known/trusted distinction, MAC normalization and roaming/reconnect deduplication.
 - Versioned atomic registry, bounded history, batched flash writes and graceful shutdown.
+- Read-only DHCP hostname enrichment for known Wi-Fi clients. Display/search and Telegram use the operator-saved name first, then the hostname; hostname discovery never grants trust. Devices without a trust decision are labeled **Trust not set**.
 - Bounded asynchronous Telegram delivery, retries/backoff/timeouts, a labeled delivery test and restricted UCI settings.
 - Separate native LuCI Overview, Devices, History and Settings routes. Overview shows current authorized-client statistics and recent activity; Devices supports name/MAC/interface search and connection/trust/deny filters, rename/trust and confirmed unblock; History paginates the latest 500 events locally (25 per page); Settings retains token-safe save/test controls. Russian UI translations are included.
 - Native rpcd authentication/ACL with a private 0600 Unix bridge; no generic exec/file/UCI access granted to limited roles.
@@ -30,8 +31,8 @@ make packages
 Outputs:
 - `build/wifi-guard`: development-host binary.
 - `build/wifi-guard-linux-arm64`: static router binary.
-- `build/packages/wifi-guard_0.3.0-r2_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.3.0-r2_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r3_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r3_all.ipk`
 
 Follow [installation](docs/installation.md) using the actual approved SSH destination, available flash/RAM and existing runtime dependencies. Do not assume a default router address. OpenWrt postinstall enables/starts only this monitor; native rpcd may need a management-only reload to register the new plugin. Network/Wi-Fi/firewall/DNS reloads are not required.
 
@@ -70,7 +71,7 @@ Ctrl-C flushes and stops only the monitor and its subscription. `/tmp` state doe
 
 ## Reliability and security limits
 
-A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Opt-in signed private-chat callbacks and confirmed saved MAC deny/unblock are described in [Telegram decisions](docs/telegram-actions.md); rollout and hardware acceptance are separate from the previously installed outbound-only release. Vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, a local timestamp with UTC offset, interface and an optional operator-saved friendly name.
+A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Opt-in signed private-chat callbacks and confirmed saved MAC deny/unblock are described in [Telegram decisions](docs/telegram-actions.md); rollout and hardware acceptance are separate from the previously installed outbound-only release. Vendor lookup, repeated-appearance alerts and SSID/band/IP enrichment are not implemented. Hostnames are best-effort DHCP metadata, not authenticated identity: a client may supply none or an arbitrary name. Clearing a manual name reveals the DHCP hostname when available. New-device alerts use the hostname available at delivery/enqueue time; a later DHCP update does not resend an alert.
 
 The startup import window is finite. Pending first snapshots are tracked per AP and persisted; one failed AP cannot indefinitely silence later live authorizations. Failed discovery/snapshots do not mark clients offline; a successful empty AP discovery does. Buffered events are drained before subscription replacement/shutdown.
 

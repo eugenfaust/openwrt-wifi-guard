@@ -14,6 +14,7 @@ type Device struct {
 	FirstSeen      time.Time `json:"first_seen"`
 	LastSeen       time.Time `json:"last_seen"`
 	FriendlyName   string    `json:"friendly_name"`
+	Hostname       string    `json:"hostname,omitempty"`
 	Trust          string    `json:"trust"`
 	LastInterface  string    `json:"last_interface"`
 	Online         bool      `json:"online"`

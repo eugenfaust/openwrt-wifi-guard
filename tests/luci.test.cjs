@@ -56,6 +56,51 @@ function controls(tree) {
   assert.match(overviewTree.textContent, /1 online \/ 2 known/);
   replies.history = { events: [] };
 
+  // Hostnames are untrusted display/search metadata, never manual names or trust.
+  const named = { mac: '02:00:00:00:00:03', hostname: 'Laptop-DHCP', trust: 'unknown' };
+  replies.devices = { devices: [named] };
+  const hostnameDevices = makeView('devices'); hostnameDevices.render(await hostnameDevices.load());
+  const displayedName = () => all(hostnameDevices.deviceList).find(e => e.tag === 'strong').textContent;
+  assert.equal(displayedName(), 'Laptop-DHCP', 'hostname is the display fallback');
+  assert.match(hostnameDevices.deviceList.textContent, /Trust not set/);
+  assert(button(hostnameDevices.deviceList, 'Trust'), 'hostname must not imply trust');
+  assert(!button(hostnameDevices.deviceList, 'Clear trust'));
+  assert.equal(named.trust, 'unknown');
+  hostnameDevices.filter.value = 'trusted'; hostnameDevices.filter.change();
+  assert.match(hostnameDevices.status.textContent, /0 shown/, 'hostname must not match the trusted filter');
+  hostnameDevices.filter.value = 'all'; hostnameDevices.filter.change();
+  await button(hostnameDevices.deviceList, 'Rename').click();
+  assert.equal(ui.modal.flatMap(all).find(e => e.tag === 'input').value, '', 'do not copy hostname into manual name');
+  assert.match(ui.modal.map(e => e.textContent).join(''), /Leave empty to use the hostname/);
+  named.friendly_name = 'Manual desk'; hostnameDevices.updateDevices(replies.devices);
+  assert.equal(displayedName(), 'Manual desk', 'manual name wins over hostname');
+  for (const query of ['lApToP-dHcP', 'MANUAL DESK']) {
+    hostnameDevices.search.value = query; hostnameDevices.search.input();
+    assert.match(hostnameDevices.status.textContent, /1 shown/, 'search must include both names independently');
+    assert.equal(displayedName(), 'Manual desk');
+  }
+  hostnameDevices.search.value = ''; hostnameDevices.search.input();
+  await button(hostnameDevices.deviceList, 'Rename').click();
+  const manualInput = ui.modal.flatMap(all).find(e => e.tag === 'input');
+  assert.equal(manualInput.value, 'Manual desk');
+  manualInput.value = '';
+  // Simulate the backend's persisted rename response for refresh.
+  replies.rename = Promise.resolve({ ok: true }).then(result => { named.friendly_name = ''; return result; });
+  const clearName = ui.modal.flatMap(all).find(e => e.tag === 'button' && e.textContent === 'Save name');
+  await clearName.click({ currentTarget: clearName });
+  assert.deepEqual(calls.filter(([method]) => method === 'rename').at(-1), ['rename', [named.mac, '']]);
+  assert.equal(displayedName(), 'Laptop-DHCP', 'clearing manual name reveals hostname');
+  for (const hostname of [undefined, '']) {
+    named.hostname = hostname; hostnameDevices.updateDevices(replies.devices);
+    assert.equal(displayedName(), 'Unnamed device');
+  }
+  named.hostname = '<img src=x onerror=alert(1)>'; hostnameDevices.updateDevices(replies.devices);
+  assert.equal(displayedName(), named.hostname);
+  assert(!all(hostnameDevices.deviceList).some(e => e.tag === 'img'), 'hostname must render as text');
+  assert(!calls.some(([method]) => ['trust', 'unblock'].includes(method)), 'display/search/rename must not change access policy or trust');
+  replies.rename = { ok: true }; calls.length = 0;
+  replies.devices = { devices: [{ mac: '02:00:00:00:00:01', online: true, trust: 'trusted' }, { mac: '02:00:00:00:00:02', online: false, trust: 'unknown', desired_deny: true }] };
+
   const devices = makeView('devices');
   const deviceTree = devices.render(await devices.load());
   const evil = '<img src=x onerror=alert(1)>';
@@ -78,7 +123,7 @@ function controls(tree) {
   const saveName = ui.modal.flatMap(all).find(e => e.tag === 'button' && e.textContent === 'Save name');
   await saveName.click({ currentTarget: saveName });
   assert.deepEqual(calls.find(([method]) => method === 'rename'), ['rename', ['02:00:00:00:00:01', 'Desk']]);
-  await button(devices.deviceList, 'Mark unknown').click();
+  await button(devices.deviceList, 'Clear trust').click();
   assert.deepEqual(calls.find(([method]) => method === 'trust'), ['trust', ['02:00:00:00:00:01', 'unknown']]);
   const denied = replies.devices.devices[1]; denied.policy_revision = 2; denied.policy_pending = true;
   devices.updateDevices(replies.devices);
@@ -199,6 +244,10 @@ function controls(tree) {
   assert(!acl.read.uci && !acl.read.file);
   const po = fs.readFileSync('luci/po/ru/wifi-guard.po', 'utf8');
   const lmo = fs.readFileSync('luci/i18n/wifi-guard.ru.lmo');
+  for (const [label, translation] of [['Trust not set', 'Доверие не задано'], ['Clear trust', 'Снять отметку доверия']]) {
+    assert(po.includes(`msgid ${JSON.stringify(label)}\nmsgstr ${JSON.stringify(translation)}`));
+    assert(lmo.includes(Buffer.from(translation)), `missing compiled translation for ${label}`);
+  }
   const ids = [...po.matchAll(/^msgid (".*")$/gm)].map(m => JSON.parse(m[1]));
   for (const match of po.matchAll(/^msgid (".+")\nmsgstr (".*")$/gm)) {
     assert(JSON.parse(match[2]).length > 0, `empty Russian translation for ${match[1]}`);
