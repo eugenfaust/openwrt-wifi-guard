@@ -145,6 +145,10 @@ Independent review found that a valid multiline quoted value in an unrelated DHC
 - The complete official SDK `make packages` path rebuilt both `0.3.0-r5` IPKs. `WIFI_GUARD_TEST_IPKS=build/packages python3 tests/packaging_test.py` passed against the actual emitted hooks and checked version, architecture and sanitized Source metadata.
 - **Hardware gate remains open:** no r5 upload/installation, automatic menu/RPC registration or LuCI-only installation/upgrade was exercised on the router. Prior r4 hardware results do not validate these new hooks. Existing router configuration and services were not changed for this task.
 
+### r5 hosted-CI test harness correction
+
+The first hosted push/tag runs failed in the package sandbox tests: chained path replacements rewrote the inserted fake rpcd path when the temporary directory itself contained `/tmp/`. The developer's custom temporary root masked this difference. A regression test reproduced the failure locally before the fix. Path substitution now processes original tokens once, and the regression covers live success/repeat, reload failure and image-root installation under a nested `tmp` directory. All five package tests passed both from source and against the emitted r5 IPKs; `make check arm64 smoke` passed. Only test code changed; the released IPK payloads and router remain unchanged. Hosted rerun status must be checked independently; local success alone is not a hosted-CI result.
+
 ## Explicitly open / not claimed
 
 1. **Disruptive hardware behavior:** actual Wi-Fi/hostapd restart, AP removal, band roaming and router reboot were deliberately not tested on the live Internet connection. Unit/fake-subprocess coverage is not substituted for those checks.

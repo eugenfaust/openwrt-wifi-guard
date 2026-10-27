@@ -8,6 +8,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,7 +69,16 @@ class PackageHooks(unittest.TestCase):
             self.assertEqual(set(paths), {
                 '/etc/init.d/rpcd', '/tmp/luci-indexcache',
                 '/tmp/luci-indexcache.*', '/tmp/luci-modulecache'})
-            source = source.replace('/etc/init.d/rpcd', str(rpcd)).replace('/tmp/', str(cache) + '/')
+            replacements = {
+                '/etc/init.d/rpcd': str(rpcd),
+                '/tmp/luci-indexcache': str(cache / 'luci-indexcache'),
+                '/tmp/luci-indexcache.*': str(cache / 'luci-indexcache.*'),
+                '/tmp/luci-modulecache': str(cache / 'luci-modulecache'),
+            }
+            # Replace only original tokens in one pass; inserted sandbox paths
+            # can themselves contain /tmp/ and must not be rewritten again.
+            source = re.sub(r'/(?:etc|tmp|usr|sbin|lib)/[^\s;]+',
+                            lambda match: replacements[match.group(0)], source)
             env = dict(os.environ, IPKG_INSTROOT=str(root / 'image') if offline else '',
                        HOOK_LOG=str(log), HOOK_FAILURE='1' if failure else '0')
             result = subprocess.run(['sh', '-c', source], env=env, capture_output=True, text=True, timeout=5)
@@ -94,6 +104,16 @@ class PackageHooks(unittest.TestCase):
 
     def test_live_install_and_repeat_refresh(self):
         self.assertEqual(self.run_luci().returncode, 0)
+
+    def test_tmp_parent_paths_are_not_substituted_twice(self):
+        # Reproduce a runner's /tmp paths without writing to the host /tmp.
+        with tempfile.TemporaryDirectory(prefix='wifi-guard-runner-') as directory:
+            parent = Path(directory) / 'tmp'
+            parent.mkdir()
+            with patch('tempfile.tempdir', str(parent)):
+                self.assertEqual(self.run_luci().returncode, 0)
+                self.assertNotEqual(self.run_luci(failure=True).returncode, 0)
+                self.assertEqual(self.run_luci(offline=True).returncode, 0)
 
     def test_image_install_never_touches_host(self):
         self.assertEqual(self.run_luci(offline=True).returncode, 0)
