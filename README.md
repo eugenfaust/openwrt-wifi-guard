@@ -11,7 +11,7 @@ Router-native detection of newly authorized Wi-Fi clients, Telegram alerts, and 
 - Silent first-run import, known/trusted distinction, MAC normalization and roaming/reconnect deduplication.
 - Versioned atomic registry, bounded history, batched flash writes and graceful shutdown.
 - Bounded asynchronous Telegram delivery, retries/backoff/timeouts, a labeled delivery test and restricted UCI settings.
-- LuCI devices/status/history, rename/trust actions, token-safe settings and test controls.
+- Separate native LuCI Overview, Devices, History and Settings routes. Overview shows current authorized-client statistics and recent activity; Devices supports name/MAC/interface search and connection/trust/deny filters, rename/trust and confirmed unblock; History paginates the latest 500 events locally (25 per page); Settings retains token-safe save/test controls. Russian UI translations are included.
 - Native rpcd authentication/ACL with a private 0600 Unix bridge; no generic exec/file/UCI access granted to limited roles.
 - Separate official-SDK `.ipk` packages for the daemon and LuCI, plus procd startup/reload/respawn.
 
@@ -30,12 +30,12 @@ make packages
 Outputs:
 - `build/wifi-guard`: development-host binary.
 - `build/wifi-guard-linux-arm64`: static router binary.
-- `build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r2_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r2_all.ipk`
 
 Follow [installation](docs/installation.md) using the actual approved SSH destination, available flash/RAM and existing runtime dependencies. Do not assume a default router address. OpenWrt postinstall enables/starts only this monitor; native rpcd may need a management-only reload to register the new plugin. Network/Wi-Fi/firewall/DNS reloads are not required.
 
-In LuCI, open **Services → WiFi Guard**. Start a conversation with your Telegram bot, then enter the numeric chat ID and token directly in the authenticated settings page. Enable delivery, save, and send a test. The token password field is empty on subsequent reads: blank preserves it, explicit clear removes it. Do not send credentials in chat or put them in process arguments. An origin-bound browser vault is not a generic server-side token export interface.
+In LuCI, open **Services → WiFi Guard → Settings**. Start a conversation with your Telegram bot, then enter the numeric chat ID and token directly in the authenticated settings page. Enable delivery, save, and send a test. The token password field is empty on subsequent reads: blank preserves it, explicit clear removes it. Do not send credentials in chat or put them in process arguments. An origin-bound browser vault is not a generic server-side token export interface. The r2 refactor is installed on the approved router: all four routes loaded in its existing theme and payload/config preservation checks passed. Russian catalog coverage is tested locally; live browser checks used the unchanged English language preference.
 
 ## Manual, nonpersistent test
 
@@ -70,7 +70,7 @@ Ctrl-C flushes and stops only the monitor and its subscription. `/tmp` state doe
 
 ## Reliability and security limits
 
-A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Opt-in signed private-chat callbacks and confirmed saved MAC deny/unblock are described in [Telegram decisions](docs/telegram-actions.md); rollout and hardware acceptance are separate from the previously installed outbound-only release. Vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, UTC timestamp and interface only.
+A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Opt-in signed private-chat callbacks and confirmed saved MAC deny/unblock are described in [Telegram decisions](docs/telegram-actions.md); rollout and hardware acceptance are separate from the previously installed outbound-only release. Vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, a local timestamp with UTC offset, interface and an optional operator-saved friendly name.
 
 The startup import window is finite. Pending first snapshots are tracked per AP and persisted; one failed AP cannot indefinitely silence later live authorizations. Failed discovery/snapshots do not mark clients offline; a successful empty AP discovery does. Buffered events are drained before subscription replacement/shutdown.
 

@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi-guard
 PKG_VERSION:=0.3.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=MIT
 PKGARCH:=all
 
@@ -31,7 +31,9 @@ endef
 
 define Package/luci-app-wifi-guard/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/wifi-guard
-	$(INSTALL_DATA) $(WIFI_GUARD_SOURCE_DIR)/luci/htdocs/luci-static/resources/view/wifi-guard/overview.js $(1)/www/luci-static/resources/view/wifi-guard/overview.js
+	$(INSTALL_DATA) $(WIFI_GUARD_SOURCE_DIR)/luci/htdocs/luci-static/resources/view/wifi-guard/*.js $(1)/www/luci-static/resources/view/wifi-guard/
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
+	$(INSTALL_DATA) $(WIFI_GUARD_SOURCE_DIR)/luci/i18n/wifi-guard.ru.lmo $(1)/usr/lib/lua/luci/i18n/wifi-guard.ru.lmo
 	$(INSTALL_DIR) $(1)/usr/libexec/rpcd $(1)/usr/share/rpcd/acl.d $(1)/usr/share/luci/menu.d
 	$(INSTALL_BIN) $(WIFI_GUARD_SOURCE_DIR)/luci/root/usr/libexec/rpcd/wifi-guard $(1)/usr/libexec/rpcd/wifi-guard
 	$(INSTALL_DATA) $(WIFI_GUARD_SOURCE_DIR)/luci/root/usr/share/rpcd/acl.d/luci-app-wifi-guard.json $(1)/usr/share/rpcd/acl.d/luci-app-wifi-guard.json

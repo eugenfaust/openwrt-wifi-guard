@@ -37,6 +37,7 @@ type Options struct {
 // Message contains only reliable device metadata. Test ignores device fields.
 type Message struct {
 	MAC       string
+	Name      string
 	At        time.Time
 	Interface string
 	Test      bool
@@ -119,20 +120,31 @@ func validOrigin(u *url.URL) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && (u.Hostname() == "127.0.0.1" || u.Hostname() == "::1" || u.Hostname() == "localhost") && u.Host != ""
 }
 
-// Format produces plaintext, never inferred identity or rich-text markup.
+// safeLine keeps untrusted labels on a single plaintext line.
+func safeLine(s string) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || r == '<' || r == '>' {
+			return -1
+		}
+		return r
+	}, s))
+}
+
+// Format produces plaintext with an explicit UTC timestamp and no I/O.
+// Delivery uses formatForSend to resolve the router's local timezone off-owner.
 func Format(m Message) string {
+	return formatAt(m, m.At.UTC(), "UTC; местное время недоступно")
+}
+
+func formatAt(m Message, at time.Time, zone string) string {
 	if m.Test {
-		return "Wi-Fi Guard TEST notification\nTelegram notification delivery test."
+		return "Wi-Fi Guard — тестовое уведомление\nПроверка доставки уведомлений в Telegram."
 	}
-	clean := func(s string) string {
-		return strings.Map(func(r rune) rune {
-			if unicode.IsControl(r) {
-				return -1
-			}
-			return r
-		}, s)
+	name := ""
+	if label := safeLine(m.Name); label != "" {
+		name = "Устройство: " + label + "\n"
 	}
-	return fmt.Sprintf("New Wi-Fi device\nMAC: %s\nTime: %s\nInterface: %s", clean(m.MAC), m.At.UTC().Format(time.RFC3339), clean(m.Interface))
+	return fmt.Sprintf("Новое устройство Wi-Fi\n%sMAC: %s\nВремя (%s): %s\nИнтерфейс: %s", name, safeLine(m.MAC), zone, at.Format("2006-01-02 15:04:05 -07:00"), safeLine(m.Interface))
 }
 
 // Enqueue never waits for network I/O or queue space. False means dropped.
@@ -266,7 +278,7 @@ func (n *Notifier) attempt(ctx context.Context, m Message) (bool, time.Duration,
 		Preview struct {
 			Disabled bool `json:"is_disabled"`
 		} `json:"link_preview_options"`
-	}{ChatID: n.chatID, Text: Format(m)}
+	}{ChatID: n.chatID, Text: formatForSend(ctx, m)}
 	payload.Preview.Disabled = true
 	if m.Keyboard != nil && !m.Test {
 		payload.Markup = &inlineMarkup{Keyboard: m.Keyboard}

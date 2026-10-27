@@ -33,12 +33,13 @@ func mustNew(t *testing.T, o Options) *Notifier {
 	return n
 }
 func TestFormatAndSuccess(t *testing.T) {
+	fakeDate(t, "printf '+0300\\n'")
 	m := Message{MAC: "02:00:00:00:00:01", At: time.Date(2026, 1, 2, 3, 4, 5, 0, time.FixedZone("test", 3600)), Interface: "phy1-ap0"}
-	want := "New Wi-Fi device\nMAC: 02:00:00:00:00:01\nTime: 2026-01-02T02:04:05Z\nInterface: phy1-ap0"
+	want := "Новое устройство Wi-Fi\nMAC: 02:00:00:00:00:01\nВремя (UTC; местное время недоступно): " + m.At.UTC().Format("2006-01-02 15:04:05 -07:00") + "\nИнтерфейс: phy1-ap0"
 	if got := Format(m); got != want {
 		t.Fatalf("format = %q", got)
 	}
-	if got := Format(Message{Test: true, MAC: m.MAC, Interface: m.Interface}); !strings.Contains(got, "TEST") || strings.Contains(got, m.MAC) || strings.Contains(got, "Interface:") {
+	if got := Format(Message{Test: true, MAC: m.MAC, Interface: m.Interface}); !strings.Contains(got, "тестовое уведомление") || strings.Contains(got, m.MAC) || strings.Contains(got, "Interface:") {
 		t.Fatalf("test format = %q", got)
 	}
 	requests := make(chan string, 1)
@@ -74,7 +75,7 @@ func TestFormatAndSuccess(t *testing.T) {
 	}
 	select {
 	case got := <-requests:
-		if got != want {
+		if got != formatAt(m, m.At.In(time.FixedZone("router", 3*60*60)), "местное") {
 			t.Error("wrong worker text")
 		}
 	case <-time.After(time.Second):

@@ -41,6 +41,20 @@ make -C "$SDK" package/wifi-guard/clean package/luci-app-wifi-guard/clean
 make -C "$SDK" -j"${JOBS:-2}" package/wifi-guard/compile package/luci-app-wifi-guard/compile \
     V=s WIFI_GUARD_SOURCE_DIR="$ROOT" WIFI_GUARD_GO="$(command -v "$GO")"
 # SDK packaging, not handcrafted/renamed tar archives. Verify metadata separately.
-cp "$SDK/bin/packages/aarch64_cortex-a53/base/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk" "$ROOT/build/packages/"
-cp "$SDK/bin/packages/aarch64_cortex-a53/base/luci-app-wifi-guard_0.3.0-r1_all.ipk" "$ROOT/build/packages/"
-sha256sum "$ROOT/build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk" "$ROOT/build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk"
+artifacts=()
+for package in wifi-guard luci-app-wifi-guard; do
+    version=$(python3 - "$ROOT/packaging/openwrt/$package/Makefile" <<'PY'
+import pathlib, re, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+values = [re.search(r'^' + key + r':=([0-9A-Za-z.+_-]+)$', text, re.M).group(1)
+          for key in ('PKG_VERSION', 'PKG_RELEASE')]
+print(values[0] + '-r' + values[1])
+PY
+)
+    arch=aarch64_cortex-a53
+    [[ "$package" == luci-app-wifi-guard ]] && arch=all
+    artifact="${package}_${version}_${arch}.ipk"
+    cp "$SDK/bin/packages/aarch64_cortex-a53/base/$artifact" "$ROOT/build/packages/"
+    artifacts+=("$ROOT/build/packages/$artifact")
+done
+sha256sum "${artifacts[@]}"

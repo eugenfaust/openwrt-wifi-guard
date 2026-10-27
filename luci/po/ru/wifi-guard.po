@@ -1,0 +1,250 @@
+msgid ""
+msgstr ""
+"Language: ru\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "%d online / %d known Wi-Fi devices"
+msgstr "В сети: %d / известных Wi-Fi-устройств: %d"
+
+msgid "%d shown / %d known Wi-Fi devices"
+msgstr "Показано: %d / известных Wi-Fi-устройств: %d"
+
+msgid "All"
+msgstr "Все"
+
+msgid "Bot token"
+msgstr "Токен бота"
+
+msgid "Callback polling: %s; new blocks: %s; protected MACs: %d. Advanced controls require an explicit service restart."
+msgstr "Опрос команд: %s; блокировка новых устройств: %s; защищённых MAC: %d. Изменение расширенных параметров требует явного перезапуска службы."
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Chat ID"
+msgstr "ID чата"
+
+msgid "Clear saved token"
+msgstr "Удалить сохранённый токен"
+
+msgid "Configured — leave blank to keep"
+msgstr "Настроен — оставьте пустым для сохранения"
+
+msgid "Connection"
+msgstr "Подключение"
+
+msgid "Connection statistics"
+msgstr "Статистика подключений"
+
+msgid "Could not confirm settings. Check chat ID, token, enabled state and storage permissions; refresh settings before retrying."
+msgstr "Не удалось подтвердить настройки. Проверьте ID чата, токен, состояние и права доступа к хранилищу; обновите страницу перед повтором."
+
+msgid "Deny requested"
+msgstr "Запрошена блокировка"
+
+msgid "Deny requested — application pending"
+msgstr "Блокировка запрошена — применение ожидается"
+
+msgid "Device"
+msgstr "Устройство"
+
+msgid "Device history"
+msgstr "История устройств"
+
+msgid "Devices"
+msgstr "Устройства"
+
+msgid "Enable Telegram notifications"
+msgstr "Включить уведомления Telegram"
+
+msgid "Event"
+msgstr "Событие"
+
+msgid "Filter"
+msgstr "Фильтр"
+
+msgid "First seen"
+msgstr "Впервые замечено"
+
+msgid "History"
+msgstr "История"
+
+msgid "History unavailable. Refresh to retry."
+msgstr "История недоступна. Обновите страницу для повтора."
+
+msgid "Interface"
+msgstr "Интерфейс"
+
+msgid "Last seen"
+msgstr "Последний раз замечено"
+
+msgid "MAC"
+msgstr "MAC"
+
+msgid "MAC deny applied"
+msgstr "Блокировка MAC применена"
+
+msgid "Mark unknown"
+msgstr "Снять доверие"
+
+msgid "Monitor unavailable. Start wifi-guard and refresh this page."
+msgstr "Монитор недоступен. Запустите wifi-guard и обновите страницу."
+
+msgid "New-device messages contain a MAC address. The saved token is never returned to this page. Blank keeps it; clearing requires disabling notifications or entering a replacement."
+msgstr "Уведомления о новых устройствах содержат MAC-адрес. Сохранённый токен не возвращается странице. Пустое поле сохраняет токен; чтобы удалить его, отключите уведомления или введите новый."
+
+msgid "Next"
+msgstr "Далее"
+
+msgid "No devices match the search or filter."
+msgstr "Поиск и фильтр не нашли устройств."
+
+msgid "No history yet."
+msgstr "История пока пуста."
+
+msgid "No known Wi-Fi devices yet. Authorized clients will appear automatically."
+msgstr "Пока нет известных Wi-Fi-устройств. Авторизованные клиенты появятся автоматически."
+
+msgid "Not configured"
+msgstr "Не настроен"
+
+msgid "Offline"
+msgstr "Не в сети"
+
+msgid "Offline: %d · Trusted: %d · Deny requested: %d"
+msgstr "Не в сети: %d · Доверенные: %d · Запрошена блокировка: %d"
+
+msgid "Online"
+msgstr "В сети"
+
+msgid "Only WiFi Guard-owned rules will be removed. Independent administrator rules remain in force."
+msgstr "Удаляются только правила WiFi Guard. Независимые правила администратора останутся в силе."
+
+msgid "Only authorized Wi-Fi clients are monitored. Known does not mean trusted; trust is not network authorization. Private MAC rotation may appear as a new device."
+msgstr "Отслеживаются только авторизованные Wi-Fi-клиенты. Известное устройство не обязательно доверенное; доверие не предоставляет доступ к сети. При смене частного MAC-адреса устройство может появиться как новое."
+
+msgid "Overview"
+msgstr "Обзор"
+
+msgid "Page %d of %d · %d recent events (maximum 500)"
+msgstr "Страница %d из %d · последних событий: %d (не более 500)"
+
+msgid "Previous"
+msgstr "Назад"
+
+msgid "Recent activity"
+msgstr "Последние события"
+
+msgid "Remove WiFi Guard MAC deny"
+msgstr "Удалить блокировку MAC WiFi Guard"
+
+msgid "Remove my deny"
+msgstr "Удалить мою блокировку"
+
+msgid "Rename"
+msgstr "Переименовать"
+
+msgid "Rename Wi-Fi device"
+msgstr "Переименовать Wi-Fi-устройство"
+
+msgid "Rename failed. Use at most 80 characters without control characters."
+msgstr "Не удалось переименовать. Не более 80 символов без управляющих символов."
+
+msgid "Save Telegram settings"
+msgstr "Сохранить настройки Telegram"
+
+msgid "Save name"
+msgstr "Сохранить имя"
+
+msgid "Search"
+msgstr "Поиск"
+
+msgid "Search name, MAC or interface"
+msgstr "Имя, MAC или интерфейс"
+
+msgid "Send test message"
+msgstr "Отправить тестовое сообщение"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Settings unavailable"
+msgstr "Настройки недоступны"
+
+msgid "Telegram accepted the test message."
+msgstr "Telegram принял тестовое сообщение."
+
+msgid "Telegram chat ID"
+msgstr "ID чата Telegram"
+
+msgid "Telegram notifications"
+msgstr "Уведомления Telegram"
+
+msgid "Telegram settings"
+msgstr "Настройки Telegram"
+
+msgid "Telegram settings saved. No network settings were changed."
+msgstr "Настройки Telegram сохранены. Сетевые настройки не изменены."
+
+msgid "Telegram settings unavailable. Refresh to retry; saving and testing are disabled."
+msgstr "Настройки Telegram недоступны. Обновите страницу; сохранение и тестирование отключены."
+
+msgid "Time"
+msgstr "Время"
+
+msgid "Trust"
+msgstr "Доверять"
+
+msgid "Trust / actions"
+msgstr "Доверие и действия"
+
+msgid "Trust updated. No network access policy was changed."
+msgstr "Доверие обновлено. Политика доступа к сети не изменена."
+
+msgid "Trusted"
+msgstr "Доверенное"
+
+msgid "Unblock"
+msgstr "Разблокировать"
+
+msgid "Unblock pending — inspect policy status"
+msgstr "Разблокировка ожидается — проверьте состояние политики"
+
+msgid "Unblock was recorded, but application is not confirmed. Check policy status."
+msgstr "Разблокировка записана, но применение не подтверждено. Проверьте состояние политики."
+
+msgid "Unknown"
+msgstr "Неизвестное"
+
+msgid "Unnamed device"
+msgstr "Без имени"
+
+msgid "Wi-Fi devices"
+msgstr "Wi-Fi-устройства"
+
+msgid "WiFi Guard"
+msgstr "Защита Wi-Fi"
+
+msgid "WiFi Guard deny removed. Independent network rules may still apply."
+msgstr "Блокировка WiFi Guard снята. Другие сетевые правила могут действовать."
+
+msgid "WiFi Guard did not respond."
+msgstr "WiFi Guard не ответил."
+
+msgid "WiFi Guard — Overview"
+msgstr "WiFi Guard — обзор"
+
+msgid "disabled"
+msgstr "выключено"
+
+msgid "enabled"
+msgstr "включено"
+
+msgid "Device discovered"
+msgstr "Обнаружено устройство"
+
+msgid "Connected"
+msgstr "Подключено"
+
+msgid "Disconnected"
+msgstr "Отключено"

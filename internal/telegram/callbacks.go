@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 )
 
 // InlineButton is a Telegram callback button, not an arbitrary URL button.
@@ -20,6 +21,7 @@ type InlineButton struct {
 }
 type ActionResult struct {
 	Text string
+	Name string // Current registry label supplied by the owner, not callback data.
 	// Nil leaves the keyboard unchanged; an empty non-nil slice removes it.
 	Keyboard [][]InlineButton
 }
@@ -50,7 +52,7 @@ func (n *Notifier) ActionKeyboard(c ActionClaims) ([][]InlineButton, error) {
 	for _, item := range []struct {
 		action Action
 		text   string
-	}{{ActionTrust, "Trust"}, {ActionBlockPrompt, "Block…"}} {
+	}{{ActionTrust, "Доверять"}, {ActionBlockPrompt, "Заблокировать"}} {
 		c.Action = item.action
 		data, err := n.EncodeAction(c)
 		if err != nil {
@@ -173,14 +175,14 @@ func (n *Notifier) processCallback(ctx context.Context, u callbackUpdate) bool {
 	}
 	result, err := n.handleAction(ctx, claims)
 	if err != nil {
-		n.callbackWrite(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": q.ID, "text": "Action could not be completed. Please try again."})
+		n.callbackWrite(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": q.ID, "text": "Не удалось выполнить действие. Попробуйте ещё раз."})
 		return false
 	}
 	// Owner commit, not Telegram acknowledgement, is the durable boundary. UI
 	// failures must not reapply a committed action; owner also enforces nonces.
 	text := result.Text
-	if len(text) > 200 {
-		text = "Action processed."
+	if utf8.RuneCountInString(text) > 200 {
+		text = "Действие обработано."
 	}
 	n.callbackWrite(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": q.ID, "text": text})
 	if result.Text != "" {
@@ -190,9 +192,13 @@ func (n *Notifier) processCallback(ctx context.Context, u callbackUpdate) bool {
 		if result.Keyboard != nil {
 			markup = &inlineMarkup{Keyboard: result.Keyboard}
 		}
+		name := ""
+		if label := safeLine(result.Name); label != "" {
+			name = "Устройство: " + label + "\n"
+		}
 		payload := map[string]any{
 			"chat_id": n.callbackChat, "message_id": q.Message.ID,
-			"text":                 fmt.Sprintf("Wi-Fi Guard\nMAC: %s\n\n%s", claims.MAC, result.Text),
+			"text":                 fmt.Sprintf("Wi-Fi Guard\n%sMAC: %s\n\n%s", name, claims.MAC, result.Text),
 			"link_preview_options": map[string]bool{"is_disabled": true},
 		}
 		if markup != nil {

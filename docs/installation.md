@@ -19,8 +19,8 @@ make packages
 The script downloads/resumes the official SDK in `$HOME/.local/share/wifi-guard-sdk`, then invokes its real package build system. The explicit host Go toolchain compiles with CGO disabled; no C ABI/toolchain dependency is introduced by the daemon. `WIFI_GUARD_SOURCE_DIR` identifies the local source; VCS stamping is disabled in the SDK source copy. This is not handcrafted IPK archive generation. The minimal SDK may warn about missing feed metadata; the generated package still records its runtime dependencies, which must already exist or be resolved on the router.
 
 Outputs:
-- `build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r2_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r2_all.ipk`
 
 Override `GO`, `WIFI_GUARD_SDK_CACHE` or `JOBS` if necessary. An extracted private host dependency tree may be supplied through `WIFI_GUARD_HOST_DEPS` without system installation. Do not build release artifacts from an unchecked working tree; run the checks first.
 
@@ -31,8 +31,8 @@ Check flash/RAM, verify the target/architecture and installed dependencies first
 ```sh
 export ROUTER='root@YOUR_ROUTER_ADDRESS'
 ssh "$ROUTER" 'df -k /overlay; free; opkg print-architecture'
-scp -O build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk "$ROUTER":/tmp/
-ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.3.0-r1_all.ipk'
+scp -O build/packages/wifi-guard_0.3.0-r2_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.3.0-r2_all.ipk "$ROUTER":/tmp/
+ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.3.0-r2_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.3.0-r2_all.ipk'
 ```
 
 OpenWrt's default package postinstall enables/starts the package's own procd service. Telegram defaults to disabled, so baseline import does not send messages. No network/firewall/DNS/Wi-Fi settings are changed or services reloaded. State remains `/etc/wifi-guard/state.json`; socket `/var/run/wifi-guard/control.sock`; token file `/etc/config/wifi-guard`. The state directory is 0700 and secret config/state files 0600.
@@ -43,12 +43,12 @@ Register the new rpcd executable using an rpcd reload during an approved managem
 ssh "$ROUTER" '/etc/init.d/rpcd reload'
 ```
 
-Refresh/re-login to LuCI, then open Services → WiFi Guard. A LuCI cache may need refreshing after installing a new menu. Do not restart uHTTPd/networking just to troubleshoot a cached page. A missing daemon or invalid config is displayed as unavailable, not as an empty successful result.
+Refresh/re-login to LuCI, then open Services → WiFi Guard → Overview (or Devices, History, Settings). A LuCI cache may need refreshing after installing a new menu. Do not restart uHTTPd/networking just to troubleshoot a cached page. A missing daemon or invalid config is displayed as unavailable, not as an empty successful result. The four-route layout and Russian translations are locally tested, not yet verified on installed router hardware.
 
 ## Configure and verify Telegram
 
 1. Start a private conversation with your bot first; bots cannot initiate a DM to a user who has not started them.
-2. In authenticated LuCI, enter your numeric chat ID and bot token, enable Telegram, then save. The password field stays blank on subsequent reads; its placeholder reports only whether a token exists.
+2. In authenticated LuCI → WiFi Guard → Settings, enter your numeric chat ID and bot token, enable Telegram, then save. The password field stays blank on subsequent reads; its placeholder reports only whether a token exists.
 3. Click **Send test message**, and verify the explicitly labeled message in the target Telegram chat. The UI reports API acceptance, not proof that a human read it.
 4. For a new-device test, use a genuinely new Wi-Fi client or an isolated test-registry copy as described in the project verification notes. Do not reset production identity state or change phone privacy settings without a specific reason.
 

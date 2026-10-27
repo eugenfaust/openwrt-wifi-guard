@@ -167,6 +167,9 @@ func (s *Service) Alert(e devices.Event) {
 	sender := s.sender
 	s.configMu.RUnlock()
 	m := telegram.Message{MAC: e.MAC, At: e.At, Interface: e.Interface}
+	if d := s.registry.State.Devices[e.MAC]; d != nil {
+		m.Name = d.FriendlyName
+	}
 	if s.actions && sender != nil {
 		if d := s.registry.State.Devices[e.MAC]; d != nil && d.ReviewNonce != 0 {
 			m.Keyboard, _ = s.reviewKeyboard(sender, *d)

@@ -158,7 +158,7 @@ func (s *Service) decisionResult(d devices.Device, text string) telegram.ActionR
 	sender := s.sender
 	s.configMu.RUnlock()
 	keys, _ := s.reviewKeyboard(sender, d)
-	return telegram.ActionResult{Text: text, Keyboard: keys}
+	return telegram.ActionResult{Text: text, Name: d.FriendlyName, Keyboard: keys}
 }
 
 // persistDevice restores only an unpublished mutation. Possibly published state
