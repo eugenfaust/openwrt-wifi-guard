@@ -1,6 +1,5 @@
 /build/
 /coverage.out
-# Local operator specification contains an observed device MAC; do not publish it.
-/AGENTS.md
+# AGENTS.md is a sanitized public contributor guide; private operator briefs stay outside Git.
 *.tmp
 __pycache__/
