@@ -137,6 +137,14 @@ This verifies target-only block/unblock on the live AX3000T and saved deny acros
 
 Independent review found that a valid multiline quoted value in an unrelated DHCP option could reject the entire hostname snapshot. A regression test reproduced the failure first; the parser now splits logical records only outside quoted values and ignores comment quotes. The full check/smoke/ARM64/minimum-Go suite, 20 focused race repetitions and both official SDK package builds passed again. Both r4 packages were hash-verified, installed and read back running/enabled, with exact installed payloads matching the artifacts. All 18 previous device identities/metadata, application settings, network configuration hashes and network/rpcd PID sets remained unchanged; eight hostname hints and all seven matching active named leases were present. The four authenticated LuCI routes were rechecked without errors/overflow and with an empty token input. Only WiFi Guard was restarted; no new Telegram receipt or disruptive network test is claimed.
 
+## 0.3.0-r5 — LuCI-only installation (local checks)
+
+- Installation instructions now lead with LuCI System → Software: update lists, upload the daemon IPK, then the matching LuCI IPK, refresh/re-login and configure Telegram. SSH remains an optional administrator path. Supported firmware, dependencies, space checks and private upgrade backups are explicit.
+- The LuCI package postinstall clears only LuCI index/module caches and reloads only rpcd to register the executable plugin and ACLs. Image-root installation skips all live actions. A failed reload returns an error with a System → Startup recovery instruction; it does not silently report success. No network/Wi-Fi/DNS/firewall reload was added.
+- `make check smoke arm64` and `GOTOOLCHAIN=go1.23.0 go test ./...` passed. Four sandbox package tests cover live/repeated refresh, image-root isolation, visible reload failure and service/dependency scope. They use a fake rpcd, never host init scripts.
+- The complete official SDK `make packages` path rebuilt both `0.3.0-r5` IPKs. `WIFI_GUARD_TEST_IPKS=build/packages python3 tests/packaging_test.py` passed against the actual emitted hooks and checked version, architecture and sanitized Source metadata.
+- **Hardware gate remains open:** no r5 upload/installation, automatic menu/RPC registration or LuCI-only installation/upgrade was exercised on the router. Prior r4 hardware results do not validate these new hooks. Existing router configuration and services were not changed for this task.
+
 ## Explicitly open / not claimed
 
 1. **Disruptive hardware behavior:** actual Wi-Fi/hostapd restart, AP removal, band roaming and router reboot were deliberately not tested on the live Internet connection. Unit/fake-subprocess coverage is not substituted for those checks.

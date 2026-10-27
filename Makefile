@@ -5,6 +5,7 @@ check:
 	$(GO) vet ./...
 	$(GO) test -race ./...
 	node tests/luci.test.cjs
+	python3 tests/packaging_test.py
 	sh -n packaging/openwrt/wifi-guard/files/wifi-guard.init
 	sh -n luci/root/usr/libexec/rpcd/wifi-guard
 test:

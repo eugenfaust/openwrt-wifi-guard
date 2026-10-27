@@ -4,13 +4,14 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi-guard
 PKG_VERSION:=0.3.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=MIT
 PKGARCH:=all
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/luci-app-wifi-guard
+  SOURCE:=packaging/openwrt/luci-app-wifi-guard
   PKGARCH:=all
   SECTION:=luci
   CATEGORY:=LuCI
@@ -42,8 +43,16 @@ endef
 
 define Package/luci-app-wifi-guard/postinst
 #!/bin/sh
-# Explicit operator start/refresh avoids implicit service restarts during install.
-[ -n "$$IPKG_INSTROOT" ] || rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*
+# No live actions when building an image. On-router LuCI uploads need no SSH.
+if [ -z "$$IPKG_INSTROOT" ]; then
+	rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*
+	rm -rf /tmp/luci-modulecache
+	# Register the executable plugin and ACLs, not network/Wi-Fi services.
+	if ! /etc/init.d/rpcd reload; then
+		echo 'WiFi Guard: rpcd refresh failed. In LuCI, open System > Startup, restart rpcd, then sign in again.' >&2
+		exit 1
+	fi
+fi
 exit 0
 endef
 
