@@ -3,3 +3,4 @@
 # Local operator specification contains an observed device MAC; do not publish it.
 /AGENTS.md
 *.tmp
+__pycache__/

@@ -56,7 +56,7 @@ def main():
         fake.chmod(0o700)
         state = root / 'state.json'
         env = dict(os.environ, WIFI_GUARD_FIXTURE=tmp)
-        args = [BINARY, '-ubus', str(fake), '-state', str(state),
+        args = [BINARY, '-ubus', str(fake), '-state', str(state), '-socket', str(root / 'control.sock'), '-uci-dir', str(root),
                 '-reconcile', '80ms', '-retry', '40ms', '-flush', '40ms']
 
         def start(log):
@@ -76,8 +76,33 @@ def main():
             proc = start(log)
             try:
                 wait_until(lambda: state.exists())
+                # A different/disabled RPC socket must not bypass registry ownership.
+                competing_args = args.copy()
+                competing_args[competing_args.index('-socket') + 1] = ''
+                competing = subprocess.run(competing_args, env=env, capture_output=True,
+                                           text=True, timeout=3)
+                assert competing.returncode != 0, 'concurrent registry writer accepted'
+                assert 'registry is already in use' in competing.stderr, competing.stderr
+                assert proc.poll() is None, 'owner exited during contention test'
+                live_dump = subprocess.check_output([BINARY, '-state', str(state), '-dump'], text=True)
+                assert json.loads(live_dump)['initialized'], 'readonly dump blocked by writer lock'
                 wait_until(lambda: (root / 'subscriptions').read_text().count('started') >= 2)
                 wait_until(lambda: len(json.loads(state.read_text())['devices']) == 2)
+                def rpc_call(method, params=None):
+                    return json.loads(subprocess.check_output(
+                        [BINARY, 'rpc', '-socket', str(root / 'control.sock'), 'call', method],
+                        input=json.dumps(params or {}), text=True))
+                public = rpc_call('settings')
+                assert public == {'enabled': False, 'chat_id': '', 'token_set': False}
+                assert len(rpc_call('devices')['devices']) == 2
+                assert rpc_call('rename', {'mac': '02:00:00:00:00:01', 'name': 'Test phone'})['ok']
+                assert rpc_call('trust', {'mac': '02:00:00:00:00:01', 'trust': 'trusted'})['ok']
+                updated = next(d for d in rpc_call('devices')['devices'] if d['mac'] == '02:00:00:00:00:01')
+                assert updated['friendly_name'] == 'Test phone' and updated['trust'] == 'trusted'
+                denied = subprocess.run([BINARY, 'rpc', '-socket', str(root / 'control.sock'), 'call', 'trust'],
+                                        input=json.dumps({'mac': '02:00:00:00:00:01', 'trust': 'blocked'}),
+                                        capture_output=True, text=True)
+                assert denied.returncode != 0, 'reserved blocking exposed'
             finally:
                 stop(proc)
         events = [json.loads(line) for line in logpath.read_text().splitlines()]
@@ -86,7 +111,8 @@ def main():
         assert alerts[0]['mac'] == '02:00:00:00:00:02', alerts
         snapshot = json.loads(state.read_text())
         assert snapshot['initialized'] and len(snapshot['devices']) == 2
-        assert all(d['trust'] == 'unknown' for d in snapshot['devices'].values())
+        assert snapshot['devices']['02:00:00:00:00:01']['trust'] == 'trusted'
+        assert snapshot['devices']['02:00:00:00:00:02']['trust'] == 'unknown'
         assert (state.stat().st_mode & 0o777) == 0o600
 
         second = root / 'second.log'
@@ -107,7 +133,7 @@ def main():
                                  capture_output=True, text=True)
         assert corrupt.returncode != 0
         print('PASS: silent bootstrap, ignore probe/auth/assoc, one new-device log, '
-              'dedup, ubus resubscribe, restart persistence, SIGTERM, dump, corrupt-state refusal')
+              'dedup, ubus resubscribe, restart persistence, SIGTERM, private RPC/actions/settings, dump, corrupt-state refusal')
 
 
 if __name__ == '__main__':

@@ -14,6 +14,13 @@ import (
 
 const MaxStateBytes int64 = 16 << 20
 
+// PublishedError means rename succeeded, but directory durability could not be
+// confirmed. Callers must not roll memory back to a state older than the file.
+type PublishedError struct{ Err error }
+
+func (e *PublishedError) Error() string { return "state published but durability confirmation failed" }
+func (e *PublishedError) Unwrap() error { return e.Err }
+
 // Private directories prevent another local account from replacing the registry.
 // Refuse symlink targets and broad permissions rather than silently chmod-ing.
 func securePath(path string, directory bool) error {
@@ -134,8 +141,11 @@ func Save(path string, state devices.State) error {
 	}
 	d, err := os.Open(dir)
 	if err != nil {
-		return err
+		return &PublishedError{Err: err}
 	}
 	defer d.Close()
-	return d.Sync()
+	if err := d.Sync(); err != nil {
+		return &PublishedError{Err: err}
+	}
+	return nil
 }

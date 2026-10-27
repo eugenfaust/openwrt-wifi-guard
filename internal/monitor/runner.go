@@ -9,9 +9,14 @@ import (
 	"time"
 
 	"openwrt-wifi-guard/internal/devices"
+	"openwrt-wifi-guard/internal/rpc"
 )
 
 type Runner struct {
+	// Both callbacks run in the registry owner loop; alert hooks must not block.
+	OnNewDevice                                     func(devices.Event)
+	Commands                                        <-chan rpc.Command
+	HandleCommand                                   func(rpc.Command)
 	Backend                                         Backend
 	Registry                                        *devices.Registry
 	Log                                             *slog.Logger
@@ -60,7 +65,12 @@ func (r *Runner) Run(ctx context.Context) error {
 		lastSaved = time.Now()
 		return nil
 	}
-	alert := func(e devices.Event) { r.Log.Info("new_device", "mac", e.MAC, "interface", e.Interface, "at", e.At) }
+	alert := func(e devices.Event) {
+		r.Log.Info("new_device", "mac", e.MAC, "interface", e.Interface, "at", e.At)
+		if r.OnNewDevice != nil {
+			r.OnNewDevice(e)
+		}
+	}
 	handle := func(e Notice) {
 		now := time.Now().UTC()
 		if e.Kind == "authorized" {
@@ -209,6 +219,19 @@ func (r *Runner) Run(ctx context.Context) error {
 		case <-retry.C:
 			if events == nil || !r.Registry.State.Initialized || len(r.Registry.State.BootstrapPending) > 0 {
 				refresh()
+			}
+		case command, ok := <-r.Commands:
+			if !ok {
+				r.Commands = nil
+				continue
+			}
+			if command.Context.Err() != nil {
+				continue
+			}
+			if r.HandleCommand != nil {
+				r.HandleCommand(command)
+			} else {
+				command.Reply <- rpc.Result{Err: fmt.Errorf("controls not enabled")}
 			}
 		case <-flush.C:
 			if err := save(false); err != nil {

@@ -1,0 +1,3 @@
+#!/bin/sh
+# rpcd enforces the caller's native ubus session ACL before invoking this bridge.
+exec /usr/sbin/wifi-guard rpc "$@"

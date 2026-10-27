@@ -1,84 +1,91 @@
 # OpenWrt WiFi Guard
 
-A lightweight, router-native Wi-Fi client monitor written in Go. **Phase A is implemented:** it discovers `hostapd.*` objects, subscribes to successful authorizations, maintains a persistent registry and emits structured `new_device` log entries. It does not monitor Ethernet clients.
+Router-native detection of newly authorized Wi-Fi clients, Telegram alerts, and a native LuCI device registry. Go standard library, static ARM64 binary, no CGO, no new public listening port. Ethernet-only clients are not monitored and unknown devices are never automatically blocked.
 
-**Not implemented yet:** Telegram delivery, LuCI, UCI configuration, procd installation and `.ipk` packages. See [PLAN.md](PLAN.md). No network listener is opened and no client is blocked.
+[Русский](README.ru.md) · [Installation](docs/installation.md) · [Security](docs/security.md) · [Verification](docs/verification.md)
 
-[Русский](README.ru.md)
+## Implemented
 
-## Build and test
+- Dynamic `hostapd.*` discovery and **object subscriptions**, not global `ubus listen`.
+- Successful `sta-authorized` events and periodic `get_clients` reconciliation; probes/auth/assoc alone never add devices.
+- Silent first-run import, known/trusted distinction, MAC normalization and roaming/reconnect deduplication.
+- Versioned atomic registry, bounded history, batched flash writes and graceful shutdown.
+- Bounded asynchronous Telegram delivery, retries/backoff/timeouts, a labeled delivery test and restricted UCI settings.
+- LuCI devices/status/history, rename/trust actions, token-safe settings and test controls.
+- Native rpcd authentication/ACL with a private 0600 Unix bridge; no generic exec/file/UCI access granted to limited roles.
+- Separate official-SDK `.ipk` packages for the daemon and LuCI, plus procd startup/reload/respawn.
 
-Go 1.23+ and Make; no third-party Go modules or CGO. Linux/macOS development, Linux router runtime. Race tests require a host compiler; the daemon does not.
+**Verified target:** Xiaomi AX3000T, OpenWrt 24.10.2, mediatek/filogic, `aarch64_cortex-a53`. Native installation, UI actions, access denial and package reinstall preserving data were tested. Real labeled-test and isolated automatic-notification receipts were confirmed by the operator; automated regression tests use a fake server. Wi-Fi/hostapd restarts and router reboot were deliberately not exercised on a live household Internet connection. See the detailed verification report rather than treating cross-compilation or CI configuration as hardware proof.
 
-```sh
-make check
-make build arm64
-make smoke # Python 3 on development host only; uses a fake ubus, never a router
-```
+## Build and install
 
-Outputs: `build/wifi-guard` (host) and `build/wifi-guard-linux-arm64` (static Linux ARM64). Cross-compilation is not proof of hardware compatibility. Target: AX3000T, OpenWrt 24.10.2, `aarch64_cortex-a53`; package builds will use the official OpenWrt SDK in Phase D.
-
-## Manual router validation (no installation)
-
-Use your actual SSH destination; do not assume a default LAN address. These commands require already-authorized SSH access. `scp -O` uses legacy SCP for OpenWrt systems without SFTP; omit `-O` if your host does not support it and SFTP works.
-
-```sh
-export ROUTER='root@YOUR_ROUTER_ADDRESS'
-ssh "$ROUTER" 'ubus list "hostapd.*"'
-# Inspect get_clients on an object printed above:
-ssh "$ROUTER" 'ubus call hostapd.YOUR_AP_OBJECT get_clients'
-scp -O build/wifi-guard-linux-arm64 "$ROUTER":/tmp/wifi-guard
-ssh -t "$ROUTER" 'chmod 700 /tmp/wifi-guard; /tmp/wifi-guard -state /tmp/wifi-guard-test/state.json -reconcile 60s -flush 10s'
-```
-
-`/tmp` state is intentionally disposable: it does not survive router reboot. Ctrl-C flushes state and terminates/reaps the subscription. Do not run two instances against the same state file. Starting with existing clients imports them silently; disconnect and reconnect an already known client and verify no `new_device` entry. Use a genuinely unseen/test MAC to verify exactly one entry after `sta-authorized`. Nearby probes and pre-authorization events must not add devices. Reload Wi-Fi **only during an approved test window**: subscription must recover within the reconciliation/retry intervals and known devices must not be rediscovered.
-
-Inspect state after stopping, then run the same monitor again with the same file:
+Go 1.23+; Make, Python 3 and Node.js 20+ are development tools only.
 
 ```sh
-ssh "$ROUTER" '/tmp/wifi-guard -state /tmp/wifi-guard-test/state.json -dump'
+make check smoke arm64
+# Linux x86-64; official SDK plus documented host prerequisites:
+make packages
 ```
 
-Do not paste registry/log output publicly: it includes device identifiers. After successful validation and explicit approval, use `-state /etc/wifi-guard/state.json` for reboot persistence (the default). The daemon creates its state directory with mode 0700 and files with 0600. Existing state paths must belong to the daemon user; the directory must not be group/world writable, and the file must be private and not a symlink. Use a dedicated directory, never a state file directly in shared `/tmp`. It does not change UCI or firewall settings. Automatic startup is deferred to Phase D.
+Outputs:
+- `build/wifi-guard`: development-host binary.
+- `build/wifi-guard-linux-arm64`: static router binary.
+- `build/packages/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.2.0-r2_all.ipk`
 
-## CLI
+Follow [installation](docs/installation.md) using the actual approved SSH destination, available flash/RAM and existing runtime dependencies. Do not assume a default router address. OpenWrt postinstall enables/starts only this monitor; native rpcd may need a management-only reload to register the new plugin. Network/Wi-Fi/firewall/DNS reloads are not required.
 
-- `-ubus ubus`: executable path, invoked directly without a shell.
-- `-state /etc/wifi-guard/state.json`: persistent device registry and bounded history.
-- `-bootstrap import`: first-run silent import; `notify` emits new-device logs for baseline clients too. Applies to an uninitialized registry only, never resets known devices.
-- `-reconcile 60s`: AP rediscovery and authorized-client snapshot interval.
-- `-retry 5s`: retry failed subscriptions / incomplete bootstrap.
-- `-resubscribe 5m`: renew even unchanged AP names to recover stale object-ID subscriptions; renewal is checked during reconciliation.
-- `-command-timeout 5s`: timeout **per** discovery/snapshot command; idle subscriptions have no artificial timeout.
-- `-flush 30s`: batch critical identity/lifecycle writes.
-- `-checkpoint 15m`: persist last-seen-only changes less frequently; SIGINT/SIGTERM flush both.
-- `-history-limit 500`: maximum lifecycle history records (1–10000).
-- `-dump`: read state as JSON and exit; no ubus or network calls.
+In LuCI, open **Services → WiFi Guard**. Start a conversation with your Telegram bot, then enter the numeric chat ID and token directly in the authenticated settings page. Enable delivery, save, and send a test. The token password field is empty on subsequent reads: blank preserves it, explicit clear removes it. Do not send credentials in chat or put them in process arguments. An origin-bound browser vault is not a generic server-side token export interface.
 
-`new_device` currently means **a log entry**, not a Telegram notification. Missing IP, hostname, SSID or band are omitted rather than invented. Registry trust defaults to `unknown`: known does not mean trusted. Rename/trust mutations are not exposed until a protected LuCI/RPC bridge exists.
+## Manual, nonpersistent test
 
-Initial import has a finite startup event window: events queued during the first snapshot attempt are imported silently. If one AP fails, later live authorizations still alert; only that AP's first successful snapshot remains silent. Pending baseline APs are persisted across restarts. A client first observed during the silent startup window cannot reliably be distinguished from an existing one.
+Use a private directory in RAM; this does not install a service or alter UCI/network settings. Copy the binary to the actual router first:
 
-## Security and durability limits
+```sh
+# On the router, using a fresh private test directory:
+umask 077
+mkdir -m 700 /tmp/wifi-guard-test
+# Place the ARM64 binary at /tmp/wifi-guard-test/wifi-guard, then:
+chmod 700 /tmp/wifi-guard-test/wifi-guard
+GOMEMLIMIT=12MiB GOGC=50 /tmp/wifi-guard-test/wifi-guard \
+  -state /tmp/wifi-guard-test/state.json \
+  -socket /tmp/wifi-guard-test/run/control.sock
+```
 
-- MAC identity is best-effort, not authentication. Private MAC rotation can appear as a new device. Trust will suppress alerts, not grant network access. No automatic blocking is implemented.
-- Only `sta-authorized` or snapshot `authorized: true` counts as a connection. `probe`, `auth`, `assoc` and DHCP/ARP observations do not.
-- State uses temp-file + fsync + rename + parent-directory fsync. Dirty state is batched to reduce flash writes. Sudden power loss/SIGKILL before a flush can lose recent observations and cause a repeated discovery after restart; graceful restart preserves them. Back up the state before upgrades.
-- A corrupt/unsupported state file is fatal; never silently discard it. Check filesystem space and permissions before restoring a backup. File writes are retried at the next flush; a failed shutdown save exits nonzero.
-- Full registry is retained for deduplication; history is bounded, not the number of known MACs. Monitor growth on constrained flash. Loading and saving are limited to 16 MiB. Oversized saves fail before replacing the previous working file; no MACs are automatically evicted. Capacity exhaustion requires operator intervention (backup/export and a deliberate capacity decision); recent in-memory changes are not durable while writes fail.
-- Run one daemon per state file. Local privileged operators can read sensitive MAC history. There is no remotely accessible RPC/HTTP API in Phase A.
-- `AGENTS.md` is a local operator brief with observed device data and is intentionally gitignored, not deleted.
+Ctrl-C flushes and stops only the monitor and its subscription. `/tmp` state does not survive reboot. An exclusive adjacent writer lock rejects a second daemon using the same state file, even with RPC disabled. Read-only dumps remain available. On a production-configured router the default UCI settings apply; use a separate private `-uci-dir` for an isolated disabled-notification test.
 
-## Troubleshooting
+## CLI and native control
 
-- `no_access_points`: APs may be disabled/reloading; inspect `ubus list 'hostapd.*'`. Retries continue.
-- `discovery_failed` / `reconcile_failed`: verify ubus permissions, daemon availability and `get_clients` schema. A failed snapshot does not mark that AP's clients offline. An unavailable AP can leave stale online state until recovery.
-- `subscription_failed`: EOF, subprocess failure or oversized input causes resubscription. Malformed/irrelevant JSON lines are ignored. Supported framing is one event JSON object per line, as emitted by the ubus CLI.
-- No new-device log: it may already be known, it may be from an initial snapshot still pending for a failed AP, or the event lacks `ifname`. Reconciliation can recover missed authorizations.
-- `state_save_failed`: fix storage/permissions; the daemon retains dirty state in memory and logs retries. Do not assume logs mean a durable write.
+- `-state /etc/wifi-guard/state.json`: persistent registry/history; `-dump` prints only device state.
+- `-ubus ubus`, `-uci uci`, `-uci-dir /etc/config`: fixed-argv executable/config locations.
+- `-socket /var/run/wifi-guard/control.sock`: private control socket; an empty value disables it.
+- `-bootstrap import`: silent first observation window; `notify` treats initial clients as new. Neither resets saved identities.
+- `-reconcile 60s`, `-retry 5s`, `-resubscribe 5m`: AP recovery and periodic stale-subscription renewal.
+- `-command-timeout 5s`: each ubus/UCI command, not an idle subscription.
+- `-flush 30s`, `-checkpoint 15m`: critical lifecycle persistence versus last-seen-only checkpoints.
+- `-history-limit 500`: bounded history (1–10000 entries); the UI returns up to 500 newest events per call.
+- `-test-telegram`: use already securely provisioned UCI credentials, send a labeled test and exit.
 
-## Uninstall
+`wifi-guard rpc list` exposes the restricted executable-plugin schema. `wifi-guard rpc call METHOD` reads parameters from stdin and forwards to the private socket. This is privileged local control, not an unauthenticated network API. The plugin strips native transport session metadata only after rpcd performs its ACL check; application parameter validation remains strict.
 
-Stop the manually started process. Remove `/tmp/wifi-guard` and temporary test state only if no longer needed. Preserve `/etc/wifi-guard/state.json` unless you intentionally want to reset known-device identity. No service/package/UCI/firewall changes are made by this phase.
+## Reliability and security limits
 
-See [architecture](docs/architecture.md) and [verification](docs/verification.md). MIT licensed.
+A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Blocking, Telegram callbacks, vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, UTC timestamp and interface only.
+
+The startup import window is finite. Pending first snapshots are tracked per AP and persisted; one failed AP cannot indefinitely silence later live authorizations. Failed discovery/snapshots do not mark clients offline; a successful empty AP discovery does. Buffered events are drained before subscription replacement/shutdown.
+
+State/config are atomically replaced with restrictive permissions. Sudden power loss before a batch can lose recent observations. Published-but-unconfirmed fsync failures remain visible and dirty for retry instead of rolling memory back behind the file. History is bounded; known MAC identities are not automatically evicted. Matching 16 MiB registry read/write limits fail before replacing the previous valid file when capacity is exceeded.
+
+Telegram's in-memory queue is bounded and best-effort, not a durable outbox. Overflow/shutdown can lose pending alerts; an ambiguous network timeout after API acceptance can duplicate a retry. Reconnect deduplication does not promise exactly-once external HTTP delivery. Credentials and raw API replies are never logged. See [security](docs/security.md) before deployment.
+
+## Troubleshooting and uninstall
+
+- **Monitor unavailable:** inspect `/etc/init.d/wifi-guard status`, `logread -e wifi-guard`, config ownership/mode and `ubus list 'hostapd.*'`.
+- **Missing LuCI object/menu:** check `ubus -v list wifi-guard`, reload only rpcd and refresh/re-login to LuCI. Do not reset the network.
+- **Telegram failure:** start the bot first, verify the numeric chat ID/token in LuCI, inspect generic failure logs, and use the test control. The token is never returned by settings reads.
+- **Storage errors:** check space/permissions and restore a private backup if corrupt; identities are never silently reset.
+- **No new-device alert:** the client may already be known, only probing, or imported in its initial silent window. A failed alert is not automatically resent forever after restart.
+
+To remove, stop only `wifi-guard`, then `opkg remove luci-app-wifi-guard wifi-guard`. Modified config and the dynamically created registry may remain to preserve credentials/known identities; remove them only deliberately after backup. Upgrade conffiles can create an `-opkg` sidecar while preserving your active config. No uninstall step should alter wireless/firewall/DHCP/DNS.
+
+The local operator `AGENTS.md` is intentionally gitignored because it contains observed device data. MIT licensed.

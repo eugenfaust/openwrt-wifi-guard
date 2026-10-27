@@ -1,58 +1,96 @@
-# Phase A verification
+# Verification report
 
-## Verified on development host
+## Development checks
 
-Toolchain: Go 1.27.3 linux/amd64, downloaded from go.dev with the published SHA-256 checked before extraction. Toolchain is outside this repository at `/home/raven/.local/share/wifi-guard-toolchain/go/`. The declared minimum Go 1.23.0 was separately exercised with `GOTOOLCHAIN=go1.23.0 go test ./...`.
+Toolchain: Go 1.27.3 linux/amd64, downloaded from go.dev with its published SHA-256 verified. The declared minimum Go1.23.0 was also exercised. No third-party Go modules or CGO are required.
 
-Reproduce on this host:
+Executed successfully:
 
 ```sh
-export PATH=/home/raven/.local/share/wifi-guard-toolchain/go/bin:$PATH
 make check smoke arm64
-go test -race -count=20 ./internal/monitor
 GOTOOLCHAIN=go1.23.0 go test ./...
-file build/wifi-guard build/wifi-guard-linux-arm64
+node tests/luci.test.cjs
+make packages
 ```
 
-Checks exercise:
+`make check` includes gofmt, vet, race tests, LuCI contract tests and shell syntax. The executable smoke harness runs the actual CLI with a fake ubus child, including silent bootstrap, irrelevant events, one new-device event, dedup/restart/SIGTERM, private RPC reads/mutations, corrupt-state refusal and reserved-block rejection.
 
-- MAC validation and canonicalization with synthetic locally administered fixtures.
-- Actual observed authorization JSON envelope, malformed JSON, irrelevant event rejection.
-- Snapshot `authorized: true` filtering, missing/invalid snapshot failure.
-- Silent bootstrap and explicit notify policy, per-AP pending snapshot retry without silencing live authorizations, and queued startup-event import.
-- Accepted-event queue drain on subscription EOF/shutdown; last-seen-only updates do not force critical writes.
-- Unsafe directory/symlink rejection; oversized saves preserve the previous working registry.
-- New-MAC deduplication, reconnects, roaming and old-interface disconnect rejection.
-- Missed events recovered from snapshots; failed AP snapshots do not force offline.
-- Subprocess discovery, subscription EOF, idle cancellation and command timeouts.
-- Subscription recovery, same-name periodic renewal and AP object changes; successful empty discovery marks clients offline.
-- History bounds, atomic persistence round trip, permissions and corrupt-state refusal.
-- Storage failure logging/retry and nonzero exit on failed shutdown flush.
-- The compiled CLI against an executable fake ubus: silent existing-client import, no probes/auth/assoc, exactly one new-device log, subprocess reconnection, restart dedup, dump and SIGTERM.
+New regression checks cover registry writer exclusion (also with RPC disabled), lock reuse after SIGKILL without replacing its inode, nonblocking UCI configuration saves, no-op configuration preserving its notifier, post-publication recovery after RPC cancellation, credential-generation cancellation, and shared serialization of test/automatic sends.
 
-`file` identifies the target binary as statically linked ARM aarch64 ELF. The host binary is static x86-64 ELF. Neither result claims execution on the router. GitHub Actions is configured, but no remote CI run is claimed.
+Additional package-level coverage includes MAC/state validation, partial AP failures, queued bootstrap events, subscription EOF queue draining, total AP disappearance, same-name renewal, command/idle cancellation, permissions/size bounds, mutation rollback versus published-but-unconfirmed errors, secret-free public settings, UCI stdin staging/readback/failure preservation, real libuci empty-option semantics, Telegram response validation/retries/redirect rejection/cancellation/queue overflow/error sanitization, and owner responsiveness while a fake HTTP server is stalled.
 
-## Hardware gate — partially verified on AX3000T
+Native rpcd compatibility regressions are explicit: schemas use exemplar JSON types; the executable bridge strips only injected transport session metadata before strict application parameter validation. The real-DOM boolean-attribute behavior is covered by an improved LuCI test harness after hardware-browser testing exposed it. The fake DOM tests are not claimed as browser proof by themselves.
 
-Executed via authorized SSH on the actual AX3000T/OpenWrt 24.10.2, with the test binary, state and logs confined to a private directory in `/tmp`:
+## Official SDK artifacts
 
-- Verified uploaded binary SHA-256 and native ARM64 execution.
-- Both real AP snapshots provide boolean `authorized`; 14 authorized Wi-Fi clients were silently imported with zero `new_device` logs.
-- Gracefully stopped/restarted only the test daemon: all registry identities were retained, no rediscovery alerts.
-- Terminated only its owned `ubus subscribe` child (not ubus/hostapd services): the daemon resubscribed without new-device logs.
-- Captured real JSON-line notifications during the user's phone reconnect: 47 probes, two disassociations, one inactive-deauth, one auth, one assoc and one successful authorization; zero malformed lines.
-- Matched the authorized phone to registry `disconnected` then `connected` history; registry remained at 14 devices with zero `new_device` logs. Probe/pre-authorization traffic did not add devices.
-- With the phone offline, backed up the original registry and prepared a separate initialized test registry missing only that phone identity. On reconnect, the phone produced exactly one `new_device` log, became online, and remained at one log after another reconciliation. The original registry remained byte-identical to its backup.
-- Stopped the test daemon gracefully, archived the private results locally, verified the archive contents, and removed the test directory from router `/tmp`. No permanent daemon/service was installed.
-- Measured daemon RSS at approximately 4–6 MiB during these observations, with `GOMEMLIMIT=12MiB` and `GOGC=50`. This is a short-run observation, not a long-term memory bound.
-- Read back unchanged hashes of network, wireless, firewall, DHCP and system configuration; WAN remained up. No network/Wi-Fi/firewall service was reloaded or restarted.
+The official OpenWrt 24.10.2 mediatek/filogic x86-64 SDK archive was downloaded and checked against the published SHA-256, then pinned in `scripts/build-openwrt.sh`. SDK build prerequisites were supplied locally; no Docker/service stack was modified.
 
-Access bootstrap used a user-approved SSH public key installed through authenticated LuCI. At the user's explicit request, that dedicated key was retained for future access; fresh key-only SSH authentication was verified after test cleanup. The private key remains outside the repository with mode 0600. Private MACs, raw logs, credentials and addresses are not included in this repository.
+Actual SDK package metadata/payload were opened and inspected:
 
-### Still open
+- `wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk`: static Linux ARM64 daemon, private default UCI, procd init.
+- `luci-app-wifi-guard_0.2.0-r2_all.ipk`: native JS view, restricted rpcd executable, ACL and menu.
 
-1. Band roaming, actual hostapd/Wi-Fi reload and full AP removal are not hardware-tested. These disruptive operations are deliberately prohibited on the user's live Internet connection unless separately approved.
-2. Durable `/etc` writes and long-run flash/RAM behavior remain untested; all daemon state writes so far are in RAM-backed `/tmp`.
-3. Telegram delivery, protected LuCI integration, procd lifecycle and official `.ipk` installation remain future phases; no Telegram request, service installation or firmware change has been performed.
+The packages were not generated by manually renaming tar archives. Their Depends metadata was checked against the actual router's installed libc/ubus/uci/ca-bundle/luci-base/rpcd packages. Native package upload hashes were compared to the exact local IPKs. Source checks plus SDK packaging were run locally; GitHub Actions is configured but no hosted CI run is claimed.
 
-See README.md for manual commands. Local automated tests do not close the remaining hardware/product criteria.
+## Non-disruptive AX3000T runtime checks
+
+Verified actual firmware: Xiaomi AX3000T, OpenWrt 24.10.2, mediatek/filogic, `aarch64_cortex-a53`, kernel 6.6.93. Authorized SSH uses a dedicated retained key, kept outside the repository at the user's request. No credentials, device MACs, local addresses or raw logs are published here.
+
+### Core / phone tests
+
+- Executed the static ARM64 binary natively; real `get_clients` uses boolean authorized flags.
+- Imported 14 authorized clients without new-device logs.
+- Graceful daemon restart preserved all known identities; killing only its owned subscribe child caused recovery without rediscovery alerts.
+- During the user's phone reconnect, captured 47 probes, two disassociations, one inactive-deauth, one auth, one assoc and one successful authorization in valid JSON-line framing.
+- The known phone moved disconnected → connected with no new-device log or registry growth.
+- In a separate initialized registry copy missing only that phone identity, reconnect produced exactly one new-device log and online state. Another reconciliation produced no duplicate. The original registry remained byte-identical to its backup.
+
+These were log/registry checks, not a claim of a Telegram message at that time.
+
+### UCI and protected API
+
+- Real UCI load/save, retaining a blank token field, clearing credentials, 0600 mode and token-free public settings passed using synthetic credentials with delivery disabled in a private `/tmp` tree.
+- Found/fixed actual libuci omission of empty option values, then re-ran the clear/reload checks successfully.
+- Installed both official IPKs on the router. The package's procd service was enabled/running and imported clients silently with Telegram disabled.
+- Reloaded only rpcd to register the executable; actual ubus advertised correct string/integer/boolean signatures.
+- Real unauthenticated HTTP JSON-RPC was denied by native uHTTPd/rpcd access control.
+- A temporary native session granted only devices/history/settings could read them but could not rename/trust/configure/test or use generic UCI. It was destroyed, and subsequent access denial was checked. Session identifiers were never published.
+- Config, registry and Unix socket were read back as root-owned 0600.
+
+### Real LuCI browser
+
+- Opened authenticated Services → WiFi Guard and observed devices, online counts, history and settings, with an empty token password field.
+- Renamed a device through the real UI, read the exact persisted state to confirm it, restored the original name, changed trust through the UI and restored its original value.
+- Fixed a native HTML boolean-attribute issue (false must be null/absent, not the string `false`), rebuilt/reinstalled the LuCI package, and verified controls are enabled for the administrator while disabled notifications render unchecked.
+- Saved Telegram settings through the real page with delivery disabled and received its success notification; read-back retained the intended configuration without a token.
+
+### Package lifecycle and safety
+
+- Reinstalled the LuCI package and verified its exact installed JS hash; the monitor process did not restart.
+- Reinstalled the daemon package. Existing config bytes and every prior device identity/first_seen/name/trust were preserved. opkg retained the modified active conffile and placed its default alongside with an `-opkg` suffix.
+- procd service remained enabled/running. Overlay free space after installation was approximately 11.6 MiB; short-run daemon RSS was observed around 10 MiB with the configured soft Go memory limit (not a hard RSS bound).
+- Network, wireless, firewall, DHCP and system config hashes remained unchanged throughout. Long-lived hostapd/netifd/dnsmasq/ubusd process IDs were unchanged across management reload/reinstall checks. WAN stayed up.
+- Token-free HTTPS retrieval from the public Telegram API origin succeeded on the router (redirected to public Bot API documentation); this verifies reachability, not bot authentication or message delivery.
+
+Private temporary test artifacts were archived locally outside Git. Test-only daemons were stopped. The installed procd daemon is the intended persistent application; no network/Wi-Fi/DNS/firewall/hostapd/ubus service restart, router reboot or firmware change was performed.
+
+## Latest r2 hardening and end-to-end check
+
+- Added an exclusive adjacent registry lock before mutable startup. On the real router, a second invocation with RPC disabled failed immediately while the procd owner remained healthy.
+- Added a bounded configuration worker, cancellation-independent post-publication readback, fail-closed uncertain configuration, no-op sender preservation, and credential-generation cancellation/shared test serialization. Regression tests passed repeatedly under the race detector.
+- Fixed LuCI independent loading/settings recovery so a failed read cannot submit invented empty defaults; successful initial settings and unsaved edits are preserved. Local regression tests cover transport/RPC failures and overlapping recovery responses. On the real updated page, enabled state rendered correctly, the token input remained empty/masked, and a no-op save succeeded without changing the private config inode or mtime.
+- RPC server cancellation now follows peer disconnect/protocol violation; queued operations check cancellation before starting. Started mutations remain best-effort cancellation, not rollback.
+- Telegram honors server `retry_after` minima beyond 30 seconds across the shared notifier, including the next queued message/test. Virtual-clock regression tests exercise 120-second cooldown, overflow-safe parsing and cancellation. Own exponential backoff remains capped at 30 seconds.
+- Successful API acceptance is observable by message ID and test flag without logging credentials, recipient or message body. API acceptance alone is not claimed as human receipt.
+- Rebuilt both `0.2.0-r2` IPKs with the official SDK, hash-verified uploads and installed them. Exact installed binary/JS payload hashes match the final IPKs; both opkg versions are r2 and the procd service is enabled/running.
+- Before upgrade, privately backed up the prior binary, init, credentials and registry outside Git with restricted permissions. Upgrade preserved every preexisting identity, first_seen, friendly name and trust value, plus the private config bytes. opkg retained the operator conffile and saved its package default separately.
+- The authorized chat's existing server-side token was used without extracting the browser vault. A labeled test was accepted and the user confirmed receipt. Automatic notifications were then enabled and read back without restarting the monitor or altering network settings.
+- For the full automatic path, stopped only the monitor, used a separate initialized registry copy missing one currently authorized client, and observed exactly one discovery and one non-test API acceptance. After another reconciliation there was no duplicate. The user explicitly confirmed the resulting `New Wi-Fi device` message. This tests the real authorized-snapshot/reconciliation path, not a newly attached physical device at that moment. The production registry remained byte-identical during the isolated run.
+- Restored the production procd monitor with automatic notifications enabled. Archived private diagnostics outside Git, removed only the two temporary test/upgrade directories, and retained the SSH key as explicitly requested. Final observed RSS was approximately 6.6 MiB (short-run observation, not a bound).
+- Rechecked native unauthenticated HTTP RPC denial. Network/wireless/firewall/DHCP/system hashes and hostapd/netifd/dnsmasq/ubusd process IDs remained unchanged. WAN was up after cleanup.
+
+## Explicitly open / not claimed
+
+1. **Disruptive hardware behavior:** actual Wi-Fi/hostapd restart, AP removal, band roaming and router reboot were deliberately not tested on the live Internet connection. Unit/fake-subprocess coverage is not substituted for those checks.
+2. **Long-run reliability:** flash wear, long-term memory growth and power-loss behavior need soak/operational validation. The Telegram queue remains bounded in-memory best-effort, not a durable exactly-once outbox.
+3. No additional OpenWrt targets, APK format, Telegram callbacks or permanent blocking are claimed. Full-product acceptance is not declared closed while the live gates above remain open.

@@ -1,23 +1,33 @@
-# Implementation plan
+# Implementation plan and status
 
-## Phase A — implement and validate now
-1. Build a stdlib-only Go module and CLI with safe, explicit file paths.
-2. Implement validated MAC normalization, known/unknown distinction, first-run silent import, roaming-safe deduplication, bounded history and per-interface reconciliation.
-3. Persist versioned state atomically with restrictive modes, periodic batching and shutdown flush. Refuse corrupt or unsupported state rather than silently resetting identity.
-4. Discover hostapd AP objects; consume JSON from `ubus subscribe`, not `ubus listen`. Ignore probe/auth/assoc. Bound command timeouts and line sizes; restart subscriptions after exit/object changes.
-5. Add test-first coverage for lifecycle, malformed events, persistence, partial failures, cancellation and ubus recovery. Exercise the actual CLI against a fake ubus process; build linux/arm64.
-6. Document installation/manual SSH verification and limitations in English/Russian. Record verified commands and outstanding hardware checks.
+## Phase A — daemon: implemented and checked
 
-## Gate: real AX3000T validation
-Run the documented commands using the actual router address and approved access. Confirm get_clients format, subscription framing, idle subscription survival, roaming and Wi-Fi reload. No automatic router configuration changes.
+Dynamic AP subscriptions, authorization-only registry, silent bootstrap, per-AP reconciliation, persistence, history, deduplication, recovery and shutdown. Local race/smoke tests and ARM64 build passed; non-disruptive AX3000T phone/restart/subscription tests passed.
 
-## Subsequent phases — after the gate
-- B: restricted UCI configuration, bounded asynchronous Telegram delivery, fake-server tests.
-- C: native LuCI devices/history/settings, restricted rpcd bridge and access-control tests; no public HTTP server.
-- D: separate daemon/LuCI OpenWrt 24.10 .ipk packages via official SDK, procd lifecycle and CI.
+## Phase B — Telegram/UCI: implemented; real test receipt verified
 
-Phase A is not the full product: Telegram, LuCI, procd and .ipk delivery are intentionally not claimed yet.
+- Bounded asynchronous notifier, official HTTPS, retries/backoff/timeouts and explicit test notification.
+- Private UCI staging/readback, token-free read APIs/logs/argv and empty-libuci-option compatibility.
+- Fake Bot API tests and real AX3000T UCI tests passed; minimum Go1.23 tests passed.
+- An existing securely provisioned router token matched the authorized chat. The native test RPC returned success and the user explicitly confirmed receiving the labeled test message. No token was extracted from the browser vault or printed. Automatic delivery was subsequently enabled and read back; an isolated-registry reconciliation produced one real notification whose receipt the user also confirmed.
 
-## Current status
+## Phase C — LuCI/RPC: implemented and checked
 
-Phase A implementation and local validation are complete, including regression fixes from independent review. Non-disruptive AX3000T checks passed, including real phone authorization, known-client deduplication, and one new-device discovery using an isolated registry. The disruptive reload/roaming and persistent-installation portions of the hardware gate remain open. See `docs/verification.md` for executed checks and exact hardware steps; do not start router deployment or declare full-product acceptance from host tests alone.
+Native devices/history/settings view, rename/trust, settings save/test controls, concrete restricted rpcd executable + private Unix bridge. Real-browser rename/trust/save passed; no-session requests denied; transient read-only session could read but not mutate/test or use generic UCI. Original device metadata was restored after tests. rpcd signatures/session metadata and HTML boolean-attribute regressions are covered.
+
+## Phase D — IPK/procd: r2 installed and checked
+
+Separate real official-SDK packages for ARM64 daemon and architecture-independent LuCI. Native installation, enabled/running procd service, root:0600 state/config/socket and reinstall preservation of config/identity/first_seen/name/trust passed. CI definition includes tests/SDK/artifact upload but no remote CI run is claimed. Release artifacts are under build/packages (gitignored).
+
+## Remaining acceptance gates / follow-on
+
+- Real test-message and isolated automatic detection-to-Telegram receipt were both confirmed. Automatic notifications are enabled on the installed service.
+- Disruptive hostapd/Wi-Fi restart, AP removal, band roaming and router reboot only in a separately approved window; not required just to add alerts/UI.
+- Long-run flash/RAM/network-failure durability monitoring. Current outbox is bounded in-memory best-effort, not durable exactly-once delivery.
+- Optional callbacks, repeat-appearance alerts, metadata enrichment, i18n and additional target architectures later; no automatic/permanent blocking.
+
+## Hardening integrated in r2
+
+Exclusive registry writer lock; nonblocking serialized UCI worker; independent post-publication recovery; no-op queue preservation; credential-generation cancellation and shared Telegram tests; server retry_after cooldown; RPC disconnect cancellation; fail-safe LuCI settings recovery. Local regressions, ARM64/minimum-Go builds, official SDK artifacts and native upgrade/no-op/lock/UI checks passed.
+
+See docs/verification.md for executed checks and docs/security.md for explicit limits. Do not declare the full product acceptance closed while the above live gates remain open.
