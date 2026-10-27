@@ -133,6 +133,10 @@ This verifies target-only block/unblock on the live AX3000T and saved deny acros
 - Authenticated LuCI rendered all four routes in the existing theme, without unavailable/runtime-error states or horizontal overflow; the token input remained empty. Devices showed eight names and ten unnamed entries, and **Trust not set** instead of **Unknown**. Searching a displayed hostname returned the matching row. Rename on that hostname-only row opened an empty manual-name input with the fallback explanation; it was canceled without changes. Browser checks retained the existing English language; Russian strings/compiled catalog were checked locally.
 - Telegram hostname selection is verified with fake sender/callback tests; no new real Telegram receipt or callback interaction is claimed. No Wi-Fi/network/DHCP/DNS/firewall reload, physical-client block test or router restart was performed for r3.
 
+## 0.3.0-r4 — multiline UCI export regression
+
+Independent review found that a valid multiline quoted value in an unrelated DHCP option could reject the entire hostname snapshot. A regression test reproduced the failure first; the parser now splits logical records only outside quoted values and ignores comment quotes. The full check/smoke/ARM64/minimum-Go suite, 20 focused race repetitions and both official SDK package builds passed again. Both r4 packages were hash-verified, installed and read back running/enabled, with exact installed payloads matching the artifacts. All 18 previous device identities/metadata, application settings, network configuration hashes and network/rpcd PID sets remained unchanged; eight hostname hints and all seven matching active named leases were present. The four authenticated LuCI routes were rechecked without errors/overflow and with an empty token input. Only WiFi Guard was restarted; no new Telegram receipt or disruptive network test is claimed.
+
 ## Explicitly open / not claimed
 
 1. **Disruptive hardware behavior:** actual Wi-Fi/hostapd restart, AP removal, band roaming and router reboot were deliberately not tested on the live Internet connection. Unit/fake-subprocess coverage is not substituted for those checks.

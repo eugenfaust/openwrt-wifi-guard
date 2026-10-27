@@ -28,6 +28,15 @@ func TestLocalSources(t *testing.T) {
 	}
 }
 
+func TestMultilineUnrelatedUCIValue(t *testing.T) {
+	uci := "package dhcp\nconfig dnsmasq\n option ignored 'first line\nsecond line'\n # comment with unmatched ' quote\nconfig host\n option name 'static-phone'\n option mac '02:00:00:00:00:01'\n"
+	leases := "2000 02:00:00:00:00:02 192.0.2.2 lease-phone *\n"
+	got, err := parseSources([]byte(uci), []byte(leases), time.Unix(1000, 0))
+	if err != nil || len(got) != 2 || got["02:00:00:00:00:01"].Name != "static-phone" || got["02:00:00:00:00:02"].Name != "lease-phone" {
+		t.Fatalf("multiline unrelated value disabled hints: %v %v", got, err)
+	}
+}
+
 func TestValidation(t *testing.T) {
 	for _, name := range []string{"*", "", "-phone", "phone-", "a..b", "a_b", "a\nb", "<script>", strings.Repeat("a", 64), strings.Repeat("a.", 127) + "a"} {
 		if ValidName(name) {

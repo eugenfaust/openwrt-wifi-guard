@@ -31,8 +31,8 @@ make packages
 Outputs:
 - `build/wifi-guard`: development-host binary.
 - `build/wifi-guard-linux-arm64`: static router binary.
-- `build/packages/wifi-guard_0.3.0-r3_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.3.0-r3_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r4_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r4_all.ipk`
 
 Follow [installation](docs/installation.md) using the actual approved SSH destination, available flash/RAM and existing runtime dependencies. Do not assume a default router address. OpenWrt postinstall enables/starts only this monitor; native rpcd may need a management-only reload to register the new plugin. Network/Wi-Fi/firewall/DNS reloads are not required.
 

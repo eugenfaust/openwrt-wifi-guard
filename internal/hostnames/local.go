@@ -170,7 +170,7 @@ func parseSources(uci, leases []byte, now time.Time) (map[string]Hint, error) {
 			}
 		}
 	}
-	for _, line := range strings.Split(string(uci), "\n") {
+	for _, line := range records(string(uci)) {
 		w, err := words(line)
 		if err != nil {
 			return nil, errSource
@@ -210,6 +210,52 @@ func parseSources(uci, leases []byte, now time.Time) (map[string]Hint, error) {
 	}
 	flush()
 	return result, nil
+}
+
+// records splits only outside shell-style quoted values. UCI export may contain
+// literal newlines in unrelated options, and comment quotes are not delimiters.
+func records(input string) []string {
+	var result []string
+	var quote byte
+	start := 0
+	escape, comment := false, false
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if comment {
+			if c == '\n' {
+				result = append(result, input[start:i])
+				start, comment = i+1, false
+			}
+			continue
+		}
+		if escape {
+			escape = false
+			continue
+		}
+		if c == '\\' && quote != '\'' {
+			escape = true
+			continue
+		}
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			quote = c
+		case '#':
+			comment = true
+		case '\n':
+			result = append(result, input[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(input) {
+		result = append(result, input[start:])
+	}
+	return result
 }
 
 // UCI export uses shell-style quoting, but is parsed as data, never executed.

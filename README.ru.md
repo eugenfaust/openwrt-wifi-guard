@@ -28,8 +28,8 @@ make packages
 
 Готовые файлы:
 - `build/wifi-guard-linux-arm64` — статический бинарник.
-- `build/packages/wifi-guard_0.3.0-r3_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.3.0-r3_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r4_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r4_all.ipk`
 
 Поддерживаемый первый target — `mediatek/filogic`, `aarch64_cortex-a53`, OpenWrt 24.10.2. Пакеты APK и другие архитектуры пока не заявлены. Архив SDK проверяется по закреплённому SHA-256; `.ipk` создаёт сам SDK, а не самодельный архиватор. Подробности и команды — [docs/installation.md](docs/installation.md).
 
@@ -39,8 +39,8 @@ make packages
 
 ```sh
 export ROUTER='root@YOUR_ROUTER_ADDRESS'
-scp -O build/packages/wifi-guard_0.3.0-r3_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.3.0-r3_all.ipk "$ROUTER":/tmp/
-ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.3.0-r3_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.3.0-r3_all.ipk'
+scp -O build/packages/wifi-guard_0.3.0-r4_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.3.0-r4_all.ipk "$ROUTER":/tmp/
+ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.3.0-r4_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.3.0-r4_all.ipk'
 # Только управляющий rpcd, не сеть/Wi-Fi/DNS/firewall:
 ssh "$ROUTER" '/etc/init.d/rpcd reload'
 ```
@@ -53,7 +53,7 @@ ssh "$ROUTER" '/etc/init.d/rpcd reload'
 3. Включите Telegram, сохраните и нажмите **Send test message**.
 4. Проверьте получение явно помеченного тестового сообщения в нужном чате.
 
-Токен в чат агенту не отправляйте. Поле Bot token после чтения остаётся пустым: пустое сохраняет прежний токен, отдельная галочка очищает его. Origin-bound browser vault не является API экспорта секретов для серверных процессов. Для управления через недоверенную сеть используйте HTTPS или SSH-туннель: HTTP сам по себе не шифрует токен. Версия 0.3.0-r3 установлена на согласованный роутер: все четыре раздела открылись в существующей теме, сохранность настроек и соответствие установленных файлов пакетам проверены. Русский каталог покрыт локальными тестами; браузерная проверка выполнялась с прежним английским языком LuCI.
+Токен в чат агенту не отправляйте. Поле Bot token после чтения остаётся пустым: пустое сохраняет прежний токен, отдельная галочка очищает его. Origin-bound browser vault не является API экспорта секретов для серверных процессов. Для управления через недоверенную сеть используйте HTTPS или SSH-туннель: HTTP сам по себе не шифрует токен. Версия 0.3.0-r4 установлена на согласованный роутер: все четыре раздела открылись в существующей теме, сохранность настроек и соответствие установленных файлов пакетам проверены. Русский каталог покрыт локальными тестами; браузерная проверка выполнялась с прежним английским языком LuCI.
 
 Состояние хранится в `/etc/wifi-guard/state.json`, секретный UCI — `/etc/config/wifi-guard`, сокет — `/var/run/wifi-guard/control.sock`. Файлы/сокет 0600, новый каталог реестра 0700. По умолчанию приложение не меняет сеть, firewall, DHCP и DNS. При отдельно включённой и подтверждённой блокировке меняются только управляемые MAC ACL в wireless и адресные runtime-правила; Wi-Fi не перезапускается.
 
