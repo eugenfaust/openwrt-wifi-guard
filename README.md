@@ -30,8 +30,8 @@ make packages
 Outputs:
 - `build/wifi-guard`: development-host binary.
 - `build/wifi-guard-linux-arm64`: static router binary.
-- `build/packages/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.2.0-r2_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk`
 
 Follow [installation](docs/installation.md) using the actual approved SSH destination, available flash/RAM and existing runtime dependencies. Do not assume a default router address. OpenWrt postinstall enables/starts only this monitor; native rpcd may need a management-only reload to register the new plugin. Network/Wi-Fi/firewall/DNS reloads are not required.
 
@@ -70,7 +70,7 @@ Ctrl-C flushes and stops only the monitor and its subscription. `/tmp` state doe
 
 ## Reliability and security limits
 
-A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Blocking, Telegram callbacks, vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, UTC timestamp and interface only.
+A MAC is best-effort identity: rotation can appear new. Known does not mean trusted, and trusted is not network authorization. Opt-in signed private-chat callbacks and confirmed saved MAC deny/unblock are described in [Telegram decisions](docs/telegram-actions.md); rollout and hardware acceptance are separate from the previously installed outbound-only release. Vendor lookup and repeated-appearance alerts are not implemented. SSID/band/IP/hostname enrichment is deferred; messages contain reliable MAC, UTC timestamp and interface only.
 
 The startup import window is finite. Pending first snapshots are tracked per AP and persisted; one failed AP cannot indefinitely silence later live authorizations. Failed discovery/snapshots do not mark clients offline; a successful empty AP discovery does. Buffered events are drained before subscription replacement/shutdown.
 

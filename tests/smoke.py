@@ -93,7 +93,8 @@ def main():
                         [BINARY, 'rpc', '-socket', str(root / 'control.sock'), 'call', method],
                         input=json.dumps(params or {}), text=True))
                 public = rpc_call('settings')
-                assert public == {'enabled': False, 'chat_id': '', 'token_set': False}
+                assert public == {'enabled': False, 'chat_id': '', 'token_set': False,
+                                  'callbacks_enabled': False, 'blocking_enabled': False, 'protected_macs': []}
                 assert len(rpc_call('devices')['devices']) == 2
                 assert rpc_call('rename', {'mac': '02:00:00:00:00:01', 'name': 'Test phone'})['ok']
                 assert rpc_call('trust', {'mac': '02:00:00:00:00:01', 'trust': 'trusted'})['ok']

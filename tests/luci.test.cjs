@@ -43,6 +43,18 @@ function all(node) { return node instanceof Element ? [node, ...node.children.fl
   view.updateDevices({ devices: [{ mac: '02:00:00:00:00:01', friendly_name: evil, online: true, trust: 'unknown', last_interface: 'ap0', first_seen: '2026-01-01T00:00:00Z', last_seen: '2026-01-01T00:00:00Z' }] });
   assert.match(view.deviceList.textContent, /<img src=x/);
   assert(!all(view.deviceList).some(e => e.tag === 'img'), 'dynamic text became HTML');
+  const denied = {mac:'02:00:00:00:00:01', trust:'unknown', desired_deny:true, policy_revision:2, policy_pending:true};
+  view.updateDevices({devices:[denied]});
+  assert.match(view.deviceList.textContent, /application pending/);
+  assert(all(view.deviceList).find(e => e.tag==='button' && e.textContent==='Trust').disabled, 'Trust could bypass deny');
+  await all(view.deviceList).find(e => e.tag==='button' && e.textContent==='Unblock').click();
+  const confirm = ui.modal.flatMap(all).find(e => e.tag==='button' && e.textContent==='Remove my deny');
+  assert(confirm, 'native unblock lacks confirmation');
+  await confirm.click({currentTarget:confirm});
+  assert.deepEqual(calls.find(([method])=>method==='unblock'), ['unblock',[denied.mac,2]]);
+  const readDenied = makeView(); readDenied.readonly = true; readDenied.status=E('p');readDenied.deviceList=E('div');
+  readDenied.updateDevices({devices:[denied]});
+  assert(!all(readDenied.deviceList).some(e=>e.tag==='button'), 'read-only role received unblock controls');
   // Both transport failures and RPC error envelopes must stay isolated.
   const validSettings = { enabled: true, chat_id: '-100123', token_set: true };
   const controls = tree => ({
@@ -138,7 +150,7 @@ function all(node) { return node instanceof Element ? [node, ...node.children.fl
   assert(all(readTree).filter(e => e.tag === 'button' || e.tag === 'input').every(e => e.disabled));
   const acl = JSON.parse(fs.readFileSync('luci/root/usr/share/rpcd/acl.d/luci-app-wifi-guard.json'))['luci-app-wifi-guard'];
   assert.deepEqual(acl.read.ubus['wifi-guard'].sort(), ['devices', 'history', 'settings']);
-  for (const action of ['rename', 'trust', 'configure', 'test']) {
+  for (const action of ['rename', 'trust', 'unblock', 'configure', 'test']) {
     assert(!acl.read.ubus['wifi-guard'].includes(action));
     assert(acl.write.ubus['wifi-guard'].includes(action));
   }

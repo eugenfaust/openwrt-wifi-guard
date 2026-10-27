@@ -9,6 +9,7 @@ var history = rpc.declare({ object: 'wifi-guard', method: 'history', params: ['l
 var settings = rpc.declare({ object: 'wifi-guard', method: 'settings', expect: { '': {} } });
 var rename = rpc.declare({ object: 'wifi-guard', method: 'rename', params: ['mac', 'name'], expect: { '': {} } });
 var trust = rpc.declare({ object: 'wifi-guard', method: 'trust', params: ['mac', 'trust'], expect: { '': {} } });
+var unblock = rpc.declare({ object: 'wifi-guard', method: 'unblock', params: ['mac', 'revision'], expect: { '': {} } });
 var configure = rpc.declare({ object: 'wifi-guard', method: 'configure', params: ['enabled', 'chat_id', 'token', 'clear_token'], expect: { '': {} } });
 var test = rpc.declare({ object: 'wifi-guard', method: 'test', expect: { '': {} } });
 
@@ -72,14 +73,33 @@ return view.extend({
 			[_('Device'), _('Connection'), _('First seen'), _('Last seen'), _('Trust / actions')].map(function(title) { return E('th', {}, [title]); }))]);
 		list.sort(function(a, b) { return Number(b.online) - Number(a.online) || a.mac.localeCompare(b.mac); });
 		list.forEach(function(d) {
-			var actions = E('td', {}, [E('span', {}, [d.trust === 'trusted' ? _('Trusted') : _('Unknown')])]);
+			var denied = !!d.desired_deny || d.trust === 'blocked';
+			var label = denied ? (d.policy_pending ? _('Deny requested — application pending') : _('MAC deny applied')) :
+				(d.policy_pending ? _('Unblock pending — inspect policy status') : (d.trust === 'trusted' ? _('Trusted') : _('Unknown')));
+			var actions = E('td', {}, [E('span', {}, [label])]);
 			if (!self.readonly) {
 				actions.appendChild(E('div', {}, [
 					E('button', { 'class': 'btn cbi-button-edit', click: function() { self.editName(d); } }, [_('Rename')]), ' ',
-					E('button', { 'class': 'btn', click: function() {
+					E('button', { 'class': 'btn', disabled: denied || d.policy_pending || null, click: function() {
 						return self.notify(trust(d.mac, d.trust === 'trusted' ? 'unknown' : 'trusted'), _('Trust updated. No network access policy was changed.'));
 					} }, [d.trust === 'trusted' ? _('Mark unknown') : _('Trust')])
 				]));
+				if (d.desired_deny) {
+					actions.appendChild(E('button', { 'class':'btn cbi-button-positive', click:function() {
+						ui.showModal(_('Remove WiFi Guard MAC deny'), [
+							E('p', {}, [d.mac, ' — ', _('Only WiFi Guard-owned rules will be removed. Independent administrator rules remain in force.')]),
+							E('button', { 'class':'btn', click:ui.hideModal }, [_('Cancel')]), ' ',
+							E('button', { 'class':'btn cbi-button-positive', click:function(event) {
+								event.currentTarget.disabled = true;
+								return self.notify(unblock(d.mac, d.policy_revision).then(function(result) {
+									checked(result); ui.hideModal();
+									if (!result.ok) throw new Error(_('Unblock was recorded, but application is not confirmed. Check policy status.'));
+									return result;
+								}), _('WiFi Guard deny removed. Independent network rules may still apply.'));
+							} }, [_('Remove my deny')])
+						]);
+					} }, [_('Unblock')]) );
+				}
 			}
 			table.appendChild(E('tr', { 'class': 'tr' }, [
 				E('td', {}, [E('strong', {}, [d.friendly_name || _('Unnamed device')]), E('br'), E('code', {}, [d.mac])]),
@@ -153,7 +173,8 @@ return view.extend({
 			enabled.checked = !!s.enabled;
 			chat.value = s.chat_id || '';
 			token.placeholder = s.token_set ? _('Configured — leave blank to keep') : _('Not configured');
-			settingsStatus.textContent = '';
+			settingsStatus.textContent = _('Callback polling: %s; new blocks: %s; protected MACs: %d. Advanced controls require an explicit service restart.').format(
+				s.callbacks_enabled ? _('enabled') : _('disabled'), s.blocking_enabled ? _('enabled') : _('disabled'), (s.protected_macs || []).length);
 			[enabled, chat, token, clear, save, send].forEach(function(control) { control.disabled = self.readonly; });
 		};
 		this.updateSettings(data[2]);

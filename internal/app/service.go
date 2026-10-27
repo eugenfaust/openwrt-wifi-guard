@@ -16,7 +16,6 @@ import (
 	"openwrt-wifi-guard/internal/config"
 	"openwrt-wifi-guard/internal/devices"
 	"openwrt-wifi-guard/internal/rpc"
-	"openwrt-wifi-guard/internal/storage"
 	"openwrt-wifi-guard/internal/telegram"
 )
 
@@ -30,11 +29,18 @@ type Sender interface {
 	SendTest(context.Context) error
 }
 type Options struct {
-	Registry  *devices.Registry
-	Store     Store
-	Save      func(devices.State) error
-	Logger    *slog.Logger
-	NewSender func(config.Settings) (Sender, error)
+	Registry        *devices.Registry
+	Store           Store
+	Save            func(devices.State) error
+	Logger          *slog.Logger
+	NewSender       func(config.Settings) (Sender, error)
+	Commands        chan rpc.Command
+	Actions         bool
+	AllowBlocking   bool
+	PolicySet       func(context.Context, string, bool) (bool, bool, error)
+	PolicyStatus    func(string) (bool, bool)
+	PolicyReconcile func(context.Context) error
+	ProtectedMACs   []string
 }
 type Service struct {
 	registry         *devices.Registry
@@ -53,6 +59,18 @@ type Service struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
+	commands         chan rpc.Command
+	actions          bool
+	allowBlocking    bool
+	policySet        func(context.Context, string, bool) (bool, bool, error)
+	policyStatus     func(string) (bool, bool)
+	policyReconcile  func(context.Context) error
+	policyQueue      chan policyJob
+	protected        map[string]bool
+
+	// Registry-owner-only durability and in-flight policy reservations.
+	decisionsUncertain bool
+	policyActive       map[string]uint64
 }
 
 var errRequest = errors.New("invalid or unavailable operation")
@@ -64,10 +82,8 @@ func New(parent context.Context, o Options) (*Service, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	if o.NewSender == nil {
-		o.NewSender = func(c config.Settings) (Sender, error) {
-			return telegram.New(telegram.Options{Token: c.Token, ChatID: c.ChatID, Logger: o.Logger})
-		}
+	if (o.Actions || o.PolicySet != nil || o.PolicyReconcile != nil) && o.Commands == nil {
+		return nil, errors.New("decision owner queue required")
 	}
 	settings, err := o.Store.Load(parent)
 	if err != nil {
@@ -75,6 +91,24 @@ func New(parent context.Context, o Options) (*Service, error) {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	s := &Service{registry: o.Registry, store: o.Store, save: o.Save, logger: o.Logger, factory: o.NewSender, ctx: ctx, cancel: cancel, configureQueue: make(chan rpc.Command, 16)}
+	s.commands, s.actions = o.Commands, o.Actions
+	s.allowBlocking = o.AllowBlocking
+	s.policySet, s.policyStatus, s.policyReconcile = o.PolicySet, o.PolicyStatus, o.PolicyReconcile
+	s.policyQueue = make(chan policyJob, 16)
+	s.protected = make(map[string]bool)
+	for _, raw := range o.ProtectedMACs {
+		mac, err := devices.NormalizeMAC(raw)
+		if err != nil {
+			cancel()
+			return nil, errRequest
+		}
+		s.protected[mac] = true
+	}
+	if s.factory == nil {
+		s.factory = func(c config.Settings) (Sender, error) {
+			return telegram.New(telegram.Options{Token: c.Token, ChatID: c.ChatID, Logger: o.Logger, Callbacks: s.actions, HandleAction: s.actionHandler(c)})
+		}
+	}
 	sender, err := s.prepare(settings)
 	if err != nil {
 		cancel()
@@ -83,6 +117,16 @@ func New(parent context.Context, o Options) (*Service, error) {
 	s.apply(settings, sender)
 	s.wg.Add(1)
 	go s.configureLoop()
+	if s.policySet != nil || s.policyReconcile != nil {
+		initial := make([]policyJob, 0)
+		for _, d := range s.registry.State.Devices {
+			if d.PolicyRevision != 0 {
+				initial = append(initial, policyJob{MAC: d.MAC, Revision: d.PolicyRevision, Deny: d.DesiredDeny})
+			}
+		}
+		s.wg.Add(1)
+		go s.policyLoop(initial)
+	}
 	return s, nil
 }
 func (s *Service) prepare(c config.Settings) (Sender, error) {
@@ -122,7 +166,13 @@ func (s *Service) Alert(e devices.Event) {
 	s.configMu.RLock()
 	sender := s.sender
 	s.configMu.RUnlock()
-	if sender != nil && !sender.Enqueue(telegram.Message{MAC: e.MAC, At: e.At, Interface: e.Interface}) {
+	m := telegram.Message{MAC: e.MAC, At: e.At, Interface: e.Interface}
+	if s.actions && sender != nil {
+		if d := s.registry.State.Devices[e.MAC]; d != nil && d.ReviewNonce != 0 {
+			m.Keyboard, _ = s.reviewKeyboard(sender, *d)
+		}
+	}
+	if sender != nil && !sender.Enqueue(m) {
 		s.logger.Warn("telegram_queue_full_or_stopped")
 	}
 }
@@ -152,6 +202,36 @@ func (s *Service) Handle(c rpc.Command) {
 	if c.Context.Err() != nil {
 		return
 	}
+	if len(c.Method) > 0 && c.Method[0] == '_' {
+		if c.Context.Value(decisionContextKey{}) != s {
+			c.Reply <- rpc.Result{Err: errRequest}
+			return
+		}
+		switch c.Method {
+		case "_telegram_action":
+			s.startAction(c)
+		case "_policy_check":
+			value, err := s.checkPolicy(c.Params)
+			c.Reply <- rpc.Result{Value: value, Err: err}
+		case "_policy_snapshot":
+			var value []policyJob
+			err := decode(c.Params, &struct{}{})
+			if err == nil {
+				value, err = s.policySnapshot()
+			}
+			c.Reply <- rpc.Result{Value: value, Err: err}
+		case "_policy_done":
+			value, err := s.finishPolicy(c.Params)
+			c.Reply <- rpc.Result{Value: value, Err: err}
+		default:
+			c.Reply <- rpc.Result{Err: errRequest}
+		}
+		return
+	}
+	if c.Method == "unblock" {
+		s.startUnblock(c)
+		return
+	}
 	if c.Method == "configure" {
 		select {
 		case s.configureQueue <- c:
@@ -176,7 +256,12 @@ func (s *Service) handle(ctx context.Context, method string, data json.RawMessag
 		}
 		list := make([]devices.Device, 0, len(s.registry.State.Devices))
 		for _, d := range s.registry.State.Devices {
-			list = append(list, *d)
+			copy := *d
+			if copy.PolicyRevision > 0 && s.policyStatus != nil {
+				desired, applied := s.policyStatus(copy.MAC)
+				copy.PolicyPending = copy.PolicyPending || desired != copy.DesiredDeny || !applied
+			}
+			list = append(list, copy)
 		}
 		sort.Slice(list, func(i, j int) bool { return list[i].MAC < list[j].MAC })
 		return map[string]any{"devices": list}, nil
@@ -208,11 +293,19 @@ func (s *Service) handle(ctx context.Context, method string, data json.RawMessag
 		if s.configUncertain {
 			return nil, errRequest
 		}
+		protected := make([]string, 0, len(s.protected))
+		for mac := range s.protected {
+			protected = append(protected, mac)
+		}
+		sort.Strings(protected)
 		return struct {
-			Enabled  bool   `json:"enabled"`
-			ChatID   string `json:"chat_id"`
-			TokenSet bool   `json:"token_set"`
-		}{s.settings.Enabled, s.settings.ChatID, s.settings.Token != ""}, nil
+			Enabled          bool     `json:"enabled"`
+			ChatID           string   `json:"chat_id"`
+			TokenSet         bool     `json:"token_set"`
+			CallbacksEnabled bool     `json:"callbacks_enabled"`
+			BlockingEnabled  bool     `json:"blocking_enabled"`
+			ProtectedMACs    []string `json:"protected_macs"`
+		}{s.settings.Enabled, s.settings.ChatID, s.settings.Token != "", s.actions, s.allowBlocking && s.policySet != nil, protected}, nil
 	case "rename", "trust":
 		var mac string
 		var apply func() error
@@ -251,22 +344,9 @@ func (s *Service) handle(ctx context.Context, method string, data json.RawMessag
 		if err := apply(); err != nil {
 			return nil, errRequest
 		}
-		if err := s.save(s.registry.State); err != nil {
-			var published *storage.PublishedError
-			if errors.As(err, &published) {
-				s.registry.Dirty = true
-				s.logger.Error("device_update_durability_unconfirmed")
-				return nil, errRequest
-			}
-			*device = before
-			s.registry.State.History = history
-			s.registry.Dirty = dirty
-			s.registry.Fresh = fresh
-			s.logger.Error("device_update_persistence_failed")
-			return nil, errRequest
+		if err := s.persistDevice(device, before, history, dirty, fresh); err != nil {
+			return nil, err
 		}
-		s.registry.Dirty = false
-		s.registry.Fresh = false
 		return map[string]bool{"ok": true}, nil
 	default:
 		return nil, errRequest

@@ -27,8 +27,8 @@ make packages
 
 Готовые файлы:
 - `build/wifi-guard-linux-arm64` — статический бинарник.
-- `build/packages/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk`
-- `build/packages/luci-app-wifi-guard_0.2.0-r2_all.ipk`
+- `build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk`
+- `build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk`
 
 Поддерживаемый первый target — `mediatek/filogic`, `aarch64_cortex-a53`, OpenWrt 24.10.2. Пакеты APK и другие архитектуры пока не заявлены. Архив SDK проверяется по закреплённому SHA-256; `.ipk` создаёт сам SDK, а не самодельный архиватор. Подробности и команды — [docs/installation.md](docs/installation.md).
 
@@ -38,8 +38,8 @@ make packages
 
 ```sh
 export ROUTER='root@YOUR_ROUTER_ADDRESS'
-scp -O build/packages/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.2.0-r2_all.ipk "$ROUTER":/tmp/
-ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.2.0-r2_all.ipk'
+scp -O build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk "$ROUTER":/tmp/
+ssh "$ROUTER" 'opkg install /tmp/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk /tmp/luci-app-wifi-guard_0.3.0-r1_all.ipk'
 # Только управляющий rpcd, не сеть/Wi-Fi/DNS/firewall:
 ssh "$ROUTER" '/etc/init.d/rpcd reload'
 ```
@@ -54,7 +54,7 @@ ssh "$ROUTER" '/etc/init.d/rpcd reload'
 
 Токен в чат агенту не отправляйте. Поле Bot token после чтения остаётся пустым: пустое сохраняет прежний токен, отдельная галочка очищает его. Origin-bound browser vault не является API экспорта секретов для серверных процессов. Для управления через недоверенную сеть используйте HTTPS или SSH-туннель: HTTP сам по себе не шифрует токен.
 
-Состояние хранится в `/etc/wifi-guard/state.json`, секретный UCI — `/etc/config/wifi-guard`, сокет — `/var/run/wifi-guard/control.sock`. Файлы/сокет 0600, новый каталог реестра 0700. Настройки сети, firewall, DHCP и DNS приложение не меняет.
+Состояние хранится в `/etc/wifi-guard/state.json`, секретный UCI — `/etc/config/wifi-guard`, сокет — `/var/run/wifi-guard/control.sock`. Файлы/сокет 0600, новый каталог реестра 0700. По умолчанию приложение не меняет сеть, firewall, DHCP и DNS. При отдельно включённой и подтверждённой блокировке меняются только управляемые MAC ACL в wireless и адресные runtime-правила; Wi-Fi не перезапускается.
 
 ## Ручной тест без установки
 
@@ -72,7 +72,7 @@ ssh "$ROUTER" '/etc/init.d/rpcd reload'
 
 ## Ограничения
 
-MAC не является аутентификацией: смена приватного адреса может выглядеть как новое устройство. Известное не равно доверенному; доверие не разрешает доступ к сети. Блокировки, кнопки Telegram/callback, определение вендора и уведомления о повторном появлении не реализованы. Сообщение содержит достоверные MAC, UTC-время и интерфейс; обогащение SSID/диапазоном/IP/hostname отложено.
+MAC не является аутентификацией: смена приватного адреса может выглядеть как новое устройство. Известное не равно доверенному; доверие не разрешает доступ к сети. Добавлены включаемые отдельно подписанные кнопки Telegram «Доверять / Заблокировать», подтверждение и сохраняемый запрет по MAC до ручной разблокировки. Включение, защищённые административные MAC, ограничения ACL и отдельные аппаратные проверки описаны в [инструкции](docs/telegram-actions.md). Определение вендора и уведомления о повторном появлении пока не реализованы. Сообщение содержит достоверные MAC, UTC-время и интерфейс; обогащение SSID/диапазоном/IP/hostname отложено.
 
 Начальный импорт имеет конечное окно: сбой одной AP не подавляет последующие живые события бесконечно. Список ожидающих первого снимка AP сохраняется между запусками. Ошибка снимка не переводит её клиентов offline; успешный пустой список AP переводит.
 

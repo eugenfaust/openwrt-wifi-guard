@@ -10,13 +10,20 @@ import (
 )
 
 type Device struct {
-	MAC           string    `json:"mac"`
-	FirstSeen     time.Time `json:"first_seen"`
-	LastSeen      time.Time `json:"last_seen"`
-	FriendlyName  string    `json:"friendly_name"`
-	Trust         string    `json:"trust"`
-	LastInterface string    `json:"last_interface"`
-	Online        bool      `json:"online"`
+	MAC            string    `json:"mac"`
+	FirstSeen      time.Time `json:"first_seen"`
+	LastSeen       time.Time `json:"last_seen"`
+	FriendlyName   string    `json:"friendly_name"`
+	Trust          string    `json:"trust"`
+	LastInterface  string    `json:"last_interface"`
+	Online         bool      `json:"online"`
+	ReviewNonce    uint64    `json:"review_nonce,omitempty"`
+	ReviewScope    string    `json:"review_scope,omitempty"`
+	ReviewStage    string    `json:"review_stage,omitempty"`
+	ReviewIssued   time.Time `json:"review_issued,omitempty"`
+	DesiredDeny    bool      `json:"desired_deny,omitempty"`
+	PolicyRevision uint64    `json:"policy_revision,omitempty"`
+	PolicyPending  bool      `json:"policy_pending,omitempty"`
 }
 type Event struct {
 	At        time.Time `json:"at"`

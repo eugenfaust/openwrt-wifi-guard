@@ -11,11 +11,14 @@ import (
 	"openwrt-wifi-guard/internal/config"
 	"openwrt-wifi-guard/internal/devices"
 	"openwrt-wifi-guard/internal/monitor"
+	"openwrt-wifi-guard/internal/policy"
 	"openwrt-wifi-guard/internal/rpc"
 	"openwrt-wifi-guard/internal/storage"
 	"openwrt-wifi-guard/internal/telegram"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -35,6 +38,11 @@ func run() error {
 	uci := flag.String("uci", "uci", "uci executable path")
 	uciDir := flag.String("uci-dir", "/etc/config", "Private UCI configuration directory")
 	socket := flag.String("socket", rpc.DefaultSocket, "Root-private Unix socket; empty disables RPC")
+	actions := flag.Bool("telegram-actions", false, "Enable exclusive private-chat callback polling (requires a dedicated bot)")
+	blocking := flag.Bool("allow-blocking", false, "Allow confirmed permanent MAC deny; requires protected administrative MACs")
+	protectedRaw := flag.String("protected-macs", "", "Comma-separated administrative MACs that must never be blocked")
+	policyPath := flag.String("policy-state", "", "Policy journal; default policy.json adjacent to registry")
+	controlDir := flag.String("hostapd-control-dir", "/var/run/hostapd", "Hostapd Unix control directory")
 	testTelegram := flag.Bool("test-telegram", false, "Send a labeled Telegram test using restricted UCI settings, then exit")
 	interval := flag.Duration("reconcile", 60*time.Second, "AP rediscovery and client reconciliation interval")
 	flush := flag.Duration("flush", 30*time.Second, "Critical state flush interval")
@@ -94,15 +102,41 @@ func run() error {
 		return json.NewEncoder(os.Stdout).Encode(r.State)
 	}
 	save := func(s devices.State) error { return storage.Save(*state, s) }
-	service, err := app.New(ctx, app.Options{Registry: r, Store: store, Save: save, Logger: log})
+	protected, err := protectedMACs(*protectedRaw)
+	if err != nil {
+		return err
+	}
+	if *blocking && (!*actions || len(protected) == 0) {
+		return fmt.Errorf("blocking requires Telegram actions and protected administrative MACs")
+	}
+	if *policyPath == "" {
+		*policyPath = filepath.Join(filepath.Dir(*state), "policy.json")
+	}
+	commands := make(chan rpc.Command, 16)
+	options := app.Options{Registry: r, Store: store, Save: save, Logger: log, Commands: commands, Actions: *actions, AllowBlocking: *blocking, ProtectedMACs: protected}
+	_, policyErr := os.Lstat(*policyPath)
+	if *blocking || policyErr == nil {
+		engine, err := policy.Open(policy.Options{Path: *policyPath, ConfigDir: *uciDir, UCI: *uci, UBus: *ubus, ControlDir: *controlDir, ProtectedMACs: protected})
+		if err != nil {
+			return err
+		}
+		defer engine.Close()
+		options.PolicySet = func(ctx context.Context, mac string, deny bool) (bool, bool, error) {
+			status, err := engine.SetDenied(ctx, mac, deny)
+			return status.Desired, status.Applied, err
+		}
+		options.PolicyStatus = func(mac string) (bool, bool) { status := engine.Status(mac); return status.Desired, status.Applied }
+		options.PolicyReconcile = engine.Reconcile
+	} else if !os.IsNotExist(policyErr) {
+		return fmt.Errorf("policy journal unavailable")
+	}
+	service, err := app.New(ctx, options)
 	if err != nil {
 		return err
 	}
 	defer service.Close()
-	var commands chan rpc.Command
 	var serving chan error
 	if *socket != "" {
-		commands = make(chan rpc.Command, 16)
 		serving = make(chan error, 1)
 		go func() {
 			err := rpc.Serve(ctx, *socket, rpc.Dispatch(commands))
@@ -112,7 +146,7 @@ func run() error {
 			}
 		}()
 	}
-	runner := monitor.Runner{Backend: monitor.Ubus{Path: *ubus, Timeout: *timeout}, Registry: r, Log: log, ReconcileInterval: *interval, FlushInterval: *flush, CheckpointInterval: *checkpoint, ResubscribeInterval: *renew, RetryInterval: *retry, Bootstrap: *bootstrap, Save: save, OnNewDevice: service.Alert, Commands: commands, HandleCommand: service.Handle}
+	runner := monitor.Runner{Backend: monitor.Ubus{Path: *ubus, Timeout: *timeout}, Registry: r, Log: log, ReconcileInterval: *interval, FlushInterval: *flush, CheckpointInterval: *checkpoint, ResubscribeInterval: *renew, RetryInterval: *retry, Bootstrap: *bootstrap, Save: save, BeforeAlert: service.PrepareAlert, OnNewDevice: service.Alert, Commands: commands, HandleCommand: service.Handle}
 	runErr := runner.Run(ctx)
 	cancel()
 	if serving != nil {
@@ -121,4 +155,23 @@ func run() error {
 		}
 	}
 	return runErr
+}
+
+func protectedMACs(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	result := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, value := range strings.Split(raw, ",") {
+		mac, err := devices.NormalizeMAC(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("invalid protected MAC list")
+		}
+		if !seen[mac] {
+			result = append(result, mac)
+			seen[mac] = true
+		}
+	}
+	return result, nil
 }

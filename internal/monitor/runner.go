@@ -14,6 +14,7 @@ import (
 
 type Runner struct {
 	// Both callbacks run in the registry owner loop; alert hooks must not block.
+	BeforeAlert                                     func(devices.Event) error
 	OnNewDevice                                     func(devices.Event)
 	Commands                                        <-chan rpc.Command
 	HandleCommand                                   func(rpc.Command)
@@ -66,6 +67,20 @@ func (r *Runner) Run(ctx context.Context) error {
 		return nil
 	}
 	alert := func(e devices.Event) {
+		if r.BeforeAlert != nil {
+			if err := r.BeforeAlert(e); err != nil {
+				r.Registry.Dirty = true
+				r.Log.Warn("alert_preparation_failed")
+				return
+			}
+			if err := save(true); err != nil {
+				// Do not publish actions whose registry state is not durable. The
+				// ordinary checkpoint path retains dirty state and retries saving.
+				r.Registry.Dirty = true
+				r.Log.Warn("alert_state_save_failed")
+				return
+			}
+		}
 		r.Log.Info("new_device", "mac", e.MAC, "interface", e.Interface, "at", e.At)
 		if r.OnNewDevice != nil {
 			r.OnNewDevice(e)

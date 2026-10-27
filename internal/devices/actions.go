@@ -40,7 +40,18 @@ func (r *Registry) SetTrust(raw, trust string, at time.Time) error {
 		return fmt.Errorf("device not found")
 	}
 	if trust != "unknown" && trust != "trusted" {
-		return fmt.Errorf("trust must be unknown or trusted; blocking is not implemented")
+		return fmt.Errorf("trust must be unknown or trusted")
+	}
+	if d.Trust == "blocked" || d.DesiredDeny {
+		return fmt.Errorf("device must be explicitly unblocked before changing trust")
+	}
+	// Even a no-op accepted LuCI action supersedes previously published buttons.
+	if d.ReviewNonce != 0 || d.ReviewStage != "" || d.ReviewScope != "" || !d.ReviewIssued.IsZero() {
+		d.ReviewNonce = 0
+		d.ReviewScope = ""
+		d.ReviewStage = ""
+		d.ReviewIssued = time.Time{}
+		r.Dirty = true
 	}
 	if d.Trust != trust {
 		d.Trust = trust

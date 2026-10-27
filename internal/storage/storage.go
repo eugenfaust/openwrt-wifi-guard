@@ -87,6 +87,9 @@ func Load(path string, limit int) (*devices.Registry, error) {
 		if err != nil || normalized != mac || d == nil || d.MAC != mac || d.FirstSeen.IsZero() || d.LastSeen.Before(d.FirstSeen) || d.LastInterface == "" {
 			return nil, fmt.Errorf("invalid device state")
 		}
+		if err := validateReview(d); err != nil {
+			return nil, err
+		}
 		switch d.Trust {
 		case "unknown", "trusted", "blocked":
 		default:

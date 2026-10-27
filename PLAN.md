@@ -15,7 +15,7 @@ Dynamic AP subscriptions, authorization-only registry, silent bootstrap, per-AP 
 
 Native devices/history/settings view, rename/trust, settings save/test controls, concrete restricted rpcd executable + private Unix bridge. Real-browser rename/trust/save passed; no-session requests denied; transient read-only session could read but not mutate/test or use generic UCI. Original device metadata was restored after tests. rpcd signatures/session metadata and HTML boolean-attribute regressions are covered.
 
-## Phase D — IPK/procd: r2 installed and checked
+## Phase D — IPK/procd: r2 baseline; 0.3.0-r1 now installed
 
 Separate real official-SDK packages for ARM64 daemon and architecture-independent LuCI. Native installation, enabled/running procd service, root:0600 state/config/socket and reinstall preservation of config/identity/first_seen/name/trust passed. CI definition includes tests/SDK/artifact upload but no remote CI run is claimed. Release artifacts are under build/packages (gitignored).
 
@@ -24,10 +24,14 @@ Separate real official-SDK packages for ARM64 daemon and architecture-independen
 - Real test-message and isolated automatic detection-to-Telegram receipt were both confirmed. Automatic notifications are enabled on the installed service.
 - Disruptive hostapd/Wi-Fi restart, AP removal, band roaming and router reboot only in a separately approved window; not required just to add alerts/UI.
 - Long-run flash/RAM/network-failure durability monitoring. Current outbox is bounded in-memory best-effort, not durable exactly-once delivery.
-- Optional callbacks, repeat-appearance alerts, metadata enrichment, i18n and additional target architectures later; no automatic/permanent blocking.
+- Repeat-appearance alerts, metadata enrichment, i18n and additional target architectures remain follow-on. Automatic blocking is deliberately absent; confirmed persistent MAC deny is implemented separately below.
 
 ## Hardening integrated in r2
 
 Exclusive registry writer lock; nonblocking serialized UCI worker; independent post-publication recovery; no-op queue preservation; credential-generation cancellation and shared Telegram tests; server retry_after cooldown; RPC disconnect cancellation; fail-safe LuCI settings recovery. Local regressions, ARM64/minimum-Go builds, official SDK artifacts and native upgrade/no-op/lock/UI checks passed.
+
+## Telegram action decisions — 0.3.0-r1 implemented and installed
+
+Signed private-chat callbacks, persisted nonce/review transitions, two-step block/unblock, isolated policy worker, owned persistent UCI deny/runtime ACL enforcement and native LuCI unblock are implemented. Local race/smoke/minimum-Go tests and official SDK builds passed. An isolated real-bot synthetic-device test received Trust and verified it by reloading saved state. Both installed package payloads match 0.3.0-r1 artifacts; callbacks and confirmed blocking are enabled. All 18 existing registry identities were conservatively protected from Telegram blocking without marking them trusted. Network config hashes/service PIDs remained unchanged; WAN remained up. No real-device blocking or disruptive Wi-Fi/reboot test was performed. See `docs/telegram-actions.md` and the exact verification record; these remaining hardware gates are not declared closed.
 
 See docs/verification.md for executed checks and docs/security.md for explicit limits. Do not declare the full product acceptance closed while the above live gates remain open.

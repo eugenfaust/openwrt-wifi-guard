@@ -41,6 +41,6 @@ make -C "$SDK" package/wifi-guard/clean package/luci-app-wifi-guard/clean
 make -C "$SDK" -j"${JOBS:-2}" package/wifi-guard/compile package/luci-app-wifi-guard/compile \
     V=s WIFI_GUARD_SOURCE_DIR="$ROOT" WIFI_GUARD_GO="$(command -v "$GO")"
 # SDK packaging, not handcrafted/renamed tar archives. Verify metadata separately.
-cp "$SDK/bin/packages/aarch64_cortex-a53/base/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk" "$ROOT/build/packages/"
-cp "$SDK/bin/packages/aarch64_cortex-a53/base/luci-app-wifi-guard_0.2.0-r2_all.ipk" "$ROOT/build/packages/"
-sha256sum "$ROOT/build/packages/wifi-guard_0.2.0-r2_aarch64_cortex-a53.ipk" "$ROOT/build/packages/luci-app-wifi-guard_0.2.0-r2_all.ipk"
+cp "$SDK/bin/packages/aarch64_cortex-a53/base/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk" "$ROOT/build/packages/"
+cp "$SDK/bin/packages/aarch64_cortex-a53/base/luci-app-wifi-guard_0.3.0-r1_all.ipk" "$ROOT/build/packages/"
+sha256sum "$ROOT/build/packages/wifi-guard_0.3.0-r1_aarch64_cortex-a53.ipk" "$ROOT/build/packages/luci-app-wifi-guard_0.3.0-r1_all.ipk"

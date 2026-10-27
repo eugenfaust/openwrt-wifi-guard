@@ -6,7 +6,7 @@ Only authorized Wi-Fi clients are observed. Nearby probe/auth/assoc traffic and 
 
 ## Native LuCI/rpcd boundary
 
-No TCP/HTTP listener is added. Native LuCI performs authentication, and native rpcd checks the `luci-app-wifi-guard` ACL before its executable plugin forwards one allowlisted method to the daemon's Unix socket. Read methods are devices/history/settings; write methods are rename/trust/configure/test. No generic exec, file access, UCI read, ubus wildcard or alternate-object forwarding is granted by this ACL.
+No TCP/HTTP listener is added. Native LuCI performs authentication, and native rpcd checks the `luci-app-wifi-guard` ACL before its executable plugin forwards one allowlisted method to the daemon's Unix socket. Read methods are devices/history/settings; write methods are rename/trust/unblock/configure/test. No generic exec, file access, UCI read, ubus wildcard or alternate-object forwarding is granted by this ACL.
 
 The Unix socket is 0600 inside a newly created 0700 directory owned by the service user (root on OpenWrt). Existing directories must have the same owner and no group/other write access; keep ancestor directories trusted too. Root/admin users remain trusted operators. There is no claim of isolation from root, native broad administrator ACLs, or another process running as the same Unix user.
 
@@ -30,4 +30,4 @@ Registry lifecycle writes are batched; last-seen-only updates checkpoint less of
 
 ## Operational safety
 
-Do not reload Wi-Fi/network/firewall/DNS/hostapd/ubus or disconnect clients for routine tests on a live household router. Restarting only this monitor is sufficient for its lifecycle tests. Live raw MAC history/logs belong in private local diagnostics, never public fixtures. The package does not implement permanent blocking, Telegram callbacks or remote arbitrary commands.
+Do not reload Wi-Fi/network/firewall/DNS/hostapd/ubus or disconnect clients for routine tests on a live household router. Restarting only this monitor is sufficient for its lifecycle tests. Live raw MAC history/logs belong in private local diagnostics, never public fixtures. Opt-in callback and saved MAC-policy safety, supported ACL modes, protected administrator MACs and recovery are documented in [telegram-actions.md](telegram-actions.md). These features do not provide remote arbitrary commands. Uninstall does not remove saved ACLs: explicitly unblock owned entries and verify completion first.

@@ -3,8 +3,8 @@ WIFI_GUARD_SOURCE_DIR ?= $(realpath $(CURDIR)/../../..)
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi-guard
-PKG_VERSION:=0.2.0
-PKG_RELEASE:=2
+PKG_VERSION:=0.3.0
+PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKGARCH:=all
 

@@ -30,6 +30,8 @@ type Options struct {
 	Timeout, Backoff      time.Duration
 	MaxAttempts, Capacity int
 	Logger                *slog.Logger
+	Callbacks             bool
+	HandleAction          func(context.Context, ActionClaims) (ActionResult, error)
 }
 
 // Message contains only reliable device metadata. Test ignores device fields.
@@ -38,6 +40,7 @@ type Message struct {
 	At        time.Time
 	Interface string
 	Test      bool
+	Keyboard  [][]InlineButton
 }
 
 // Notifier owns a bounded in-memory queue. Failed or shutdown-pending messages
@@ -50,6 +53,10 @@ type Notifier struct {
 	logger                 *slog.Logger
 	queue                  chan Message
 	gate                   chan struct{}
+	callbacks              bool
+	handleAction           func(context.Context, ActionClaims) (ActionResult, error)
+	codec                  *ActionCodec
+	callbackChat           int64
 	started, stopped       atomic.Bool
 	// cooldown is protected by gate, including across separate send calls.
 	cooldown time.Time
@@ -68,6 +75,9 @@ func New(o Options) (*Notifier, error) {
 	id, err := strconv.ParseInt(o.ChatID, 10, 64)
 	if (err != nil || id == 0 || strings.HasPrefix(o.ChatID, "+")) && !usernamePattern.MatchString(o.ChatID) {
 		return nil, errors.New("invalid Telegram chat ID")
+	}
+	if o.Callbacks && (err != nil || id <= 0 || strconv.FormatInt(id, 10) != o.ChatID || o.HandleAction == nil) {
+		return nil, errors.New("Telegram callbacks require a positive numeric private chat and handler")
 	}
 	if o.Timeout < 0 || o.Backoff < 0 || o.MaxAttempts < 0 || o.Capacity < 0 {
 		return nil, errors.New("invalid Telegram delivery limits")
@@ -100,7 +110,7 @@ func New(o Options) (*Notifier, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	return &Notifier{token: o.Token, chatID: o.ChatID, baseURL: strings.TrimSuffix(o.BaseURL, "/"), client: &client, timeout: o.Timeout, backoff: o.Backoff, attempts: o.MaxAttempts, logger: o.Logger, queue: make(chan Message, o.Capacity), gate: make(chan struct{}, 1), now: time.Now, sleep: sleepContext}, nil
+	return &Notifier{callbacks: o.Callbacks, handleAction: o.HandleAction, codec: actionCodec(o.Token), callbackChat: id, token: o.Token, chatID: o.ChatID, baseURL: strings.TrimSuffix(o.BaseURL, "/"), client: &client, timeout: o.Timeout, backoff: o.Backoff, attempts: o.MaxAttempts, logger: o.Logger, queue: make(chan Message, o.Capacity), gate: make(chan struct{}, 1), now: time.Now, sleep: sleepContext}, nil
 }
 func validOrigin(u *url.URL) bool {
 	if u.Scheme == "https" && u.Host == "api.telegram.org" {
@@ -146,6 +156,13 @@ func (n *Notifier) Run(ctx context.Context) {
 		return
 	}
 	defer n.stopped.Store(true)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if n.callbacks {
+		done := make(chan struct{})
+		go func() { defer close(done); n.pollCallbacks(ctx) }()
+		defer func() { cancel(); <-done }()
+	}
 	for {
 		if ctx.Err() != nil {
 			return
@@ -243,13 +260,17 @@ func (n *Notifier) send(ctx context.Context, m Message) error {
 
 func (n *Notifier) attempt(ctx context.Context, m Message) (bool, time.Duration, error) {
 	payload := struct {
-		ChatID  string `json:"chat_id"`
-		Text    string `json:"text"`
+		ChatID  string        `json:"chat_id"`
+		Text    string        `json:"text"`
+		Markup  *inlineMarkup `json:"reply_markup,omitempty"`
 		Preview struct {
 			Disabled bool `json:"is_disabled"`
 		} `json:"link_preview_options"`
 	}{ChatID: n.chatID, Text: Format(m)}
 	payload.Preview.Disabled = true
+	if m.Keyboard != nil && !m.Test {
+		payload.Markup = &inlineMarkup{Keyboard: m.Keyboard}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return false, 0, errors.New("Telegram request encoding failed")
