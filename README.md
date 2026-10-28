@@ -20,7 +20,7 @@ Router-native detection of newly authorized Wi-Fi clients, Telegram alerts, and 
 
 ## LuCI device blocking (0.3.0-r6)
 
-Open **Services → WiFi Guard → Devices → Block**, review the target and confirm **Disconnect and block**. This saves a persistent MAC deny using the same target-only policy backend as Telegram; Telegram polling/delivery need not be enabled. Blocking must be enabled by the administrator and protected MACs cannot be blocked. Disabled buttons explain why blocking is unavailable. Previously protected devices remain protected; this UI does not remove protections. Pending or uncertain results are not proof of enforcement. Use **Unblock** to remove only WiFi Guard-owned rules. Install both matching r6 packages; the new LuCI flow is locally tested, not router-verified.
+Open **Services → WiFi Guard → Devices → Block**, review the target and confirm **Disconnect and block**. This saves a persistent MAC deny using the same target-only policy backend as Telegram; Telegram polling/delivery need not be enabled. Blocking must be enabled by the administrator and protected MACs cannot be blocked. Disabled buttons explain why blocking is unavailable. Previously protected devices remain protected; this UI does not remove protections. Pending or uncertain results are not proof of enforcement. Use **Unblock** to remove only WiFi Guard-owned rules. Install both matching r6 packages; the approved-router upgrade, rendered dialog and Cancel path are verified; a new real-device block is not.
 
 ## Install through LuCI — no SSH required
 
