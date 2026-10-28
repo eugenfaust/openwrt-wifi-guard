@@ -254,8 +254,8 @@ func (s *Service) Handle(c rpc.Command) {
 		}
 		return
 	}
-	if c.Method == "unblock" {
-		s.startUnblock(c)
+	if c.Method == "unblock" || c.Method == "block" {
+		s.startPolicyChange(c)
 		return
 	}
 	if c.Method == "configure" {
@@ -274,6 +274,14 @@ func (s *Service) Handle(c rpc.Command) {
 	value, err := s.handle(c.Context, c.Method, c.Params)
 	c.Reply <- rpc.Result{Value: value, Err: err}
 }
+
+// deviceView adds owner-computed capabilities without persisting UI policy hints.
+type deviceView struct {
+	devices.Device
+	BlockAllowed bool   `json:"block_allowed"`
+	BlockReason  string `json:"block_reason"`
+}
+
 func (s *Service) handle(ctx context.Context, method string, data json.RawMessage) (any, error) {
 	switch method {
 	case "devices":
@@ -281,14 +289,15 @@ func (s *Service) handle(ctx context.Context, method string, data json.RawMessag
 		if decode(data, &struct{}{}) != nil {
 			return nil, errRequest
 		}
-		list := make([]devices.Device, 0, len(s.registry.State.Devices))
+		list := make([]deviceView, 0, len(s.registry.State.Devices))
 		for _, d := range s.registry.State.Devices {
 			copy := *d
 			if copy.PolicyRevision > 0 && s.policyStatus != nil {
 				desired, applied := s.policyStatus(copy.MAC)
 				copy.PolicyPending = copy.PolicyPending || desired != copy.DesiredDeny || !applied
 			}
-			list = append(list, copy)
+			reason := s.blockReason(copy)
+			list = append(list, deviceView{Device: copy, BlockAllowed: reason == "", BlockReason: reason})
 		}
 		sort.Slice(list, func(i, j int) bool { return list[i].MAC < list[j].MAC })
 		return map[string]any{"devices": list}, nil

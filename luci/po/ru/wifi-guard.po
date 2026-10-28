@@ -12,6 +12,39 @@ msgstr "Показано: %d / известных Wi-Fi-устройств: %d"
 msgid "All"
 msgstr "Все"
 
+msgid "Block"
+msgstr "Заблокировать"
+
+msgid "Block Wi-Fi device"
+msgstr "Заблокировать Wi-Fi-устройство"
+
+msgid "Disconnect this device and deny its MAC on managed access points until manually unblocked? MAC addresses can be spoofed. Keep another router management connection available."
+msgstr "Отключить устройство и запретить его MAC на управляемых точках доступа до ручной разблокировки? MAC-адрес можно подменить. Сохраните другой способ доступа к роутеру."
+
+msgid "Disconnect and block"
+msgstr "Отключить и заблокировать"
+
+msgid "Block was recorded, but application is not confirmed. Check policy status."
+msgstr "Запрет сохранён, но применение не подтверждено. Проверьте состояние блокировки."
+
+msgid "WiFi Guard MAC deny applied. The device must be manually unblocked to reconnect."
+msgstr "Запрет MAC от WiFi Guard применён. Для повторного подключения нужна ручная разблокировка."
+
+msgid "Read back policy status before retrying: the request may already have been saved."
+msgstr "Перед повтором проверьте состояние блокировки: запрос мог быть уже сохранён."
+
+msgid "Protected from blocking"
+msgstr "Защищено от блокировки"
+
+msgid "Blocking is disabled on this router"
+msgstr "Блокировка отключена на этом роутере"
+
+msgid "Policy operation pending"
+msgstr "Ожидается применение сетевых правил"
+
+msgid "Blocking unavailable"
+msgstr "Блокировка недоступна"
+
 msgid "Bot token"
 msgstr "Токен бота"
 

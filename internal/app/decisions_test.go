@@ -75,7 +75,7 @@ func (f *decisionFixture) device(t *testing.T) devices.Device {
 	if e != nil {
 		t.Fatal(e)
 	}
-	return v.(map[string]any)["devices"].([]devices.Device)[0]
+	return v.(map[string]any)["devices"].([]deviceView)[0].Device
 }
 func claims(d devices.Device, a telegram.Action) telegram.ActionClaims {
 	return telegram.ActionClaims{MAC: d.MAC, Nonce: d.ReviewNonce, Issued: d.ReviewIssued, Action: a}
@@ -275,7 +275,7 @@ func TestPolicyCanceledCallerDoesNotCancelAcceptedIntent(t *testing.T) {
 // Obtain callback claims through the owner, never by sharing the live registry.
 func fDeviceForAction(f *decisionFixture) devices.Device {
 	v, _ := f.call(context.Background(), "devices", struct{}{})
-	return v.(map[string]any)["devices"].([]devices.Device)[0]
+	return v.(map[string]any)["devices"].([]deviceView)[0].Device
 }
 func TestPolicyShutdownCancellation(t *testing.T) {
 	started := make(chan struct{})

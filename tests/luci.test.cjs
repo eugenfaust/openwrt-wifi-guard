@@ -148,6 +148,90 @@ function controls(tree) {
   replies.devices = { devices: [] }; await devices.refresh();
   assert.match(devices.status.textContent, /0 shown/);
 
+  // Blocking requires an eligible latest read and a separate explicit confirmation.
+  const eligible = { mac: '02:00:00:00:00:04', hostname: '<unsafe>', policy_revision: 0, block_allowed: true };
+  replies.devices = { devices: [eligible] };
+  const blockView = makeView('devices'); blockView.render(await blockView.load());
+  const blockCalls = () => calls.filter(([method]) => method === 'block');
+  assert(!button(blockView.deviceList, 'Block').disabled);
+  await button(blockView.deviceList, 'Block').click();
+  assert.equal(blockCalls().length, 0, 'opening confirmation must not mutate');
+  const modalTree = () => E('div', {}, ui.modal);
+  assert.match(modalTree().textContent, /until manually unblocked/);
+  await button(modalTree(), 'Cancel').click();
+  assert.equal(blockCalls().length, 0);
+  await button(blockView.deviceList, 'Block').click();
+  let confirmBlock = button(modalTree(), 'Disconnect and block');
+  replies.block = { ok: true, pending: false };
+  await confirmBlock.click({ currentTarget: confirmBlock });
+  assert.deepEqual(blockCalls().at(-1), ['block', [eligible.mac, 0, true]]);
+  const afterBlock = blockCalls().length;
+  await confirmBlock.click({ currentTarget: confirmBlock });
+  assert.equal(blockCalls().length, afterBlock, 'double confirmation must not repeat mutation');
+  for (const failure of [{ ok: false, pending: true }, { error: 'rejected' }, new Error('lost reply')]) {
+    replies.block = failure;
+    await button(blockView.deviceList, 'Block').click();
+    confirmBlock = button(modalTree(), 'Disconnect and block');
+    const before = calls.length;
+    await confirmBlock.click({ currentTarget: confirmBlock });
+    assert(calls.slice(before).some(([method]) => method === 'devices'), 'uncertain block must read back');
+  }
+  for (const reason of ['protected', 'disabled', 'pending', undefined]) {
+    blockView.updateDevices({ devices: [{ ...eligible, block_allowed: false, block_reason: reason }] });
+    assert(button(blockView.deviceList, 'Block').disabled);
+    const before = blockCalls().length;
+    await button(blockView.deviceList, 'Block').click();
+    assert.equal(blockCalls().length, before);
+  }
+  blockView.updateDevices({ devices: [eligible] });
+  await button(blockView.deviceList, 'Block').click();
+  confirmBlock = button(modalTree(), 'Disconnect and block');
+  blockView.updateDevices({ devices: [{ ...eligible, policy_revision: 1 }] });
+  const beforeStale = blockCalls().length;
+  await confirmBlock.click({ currentTarget: confirmBlock });
+  assert.equal(blockCalls().length, beforeStale, 'stale modal must not mutate');
+  await button(blockView.deviceList, 'Block').click();
+  confirmBlock = button(modalTree(), 'Disconnect and block');
+  replies.devices = new Error('offline'); await blockView.refresh();
+  await confirmBlock.click({ currentTarget: confirmBlock });
+  assert.equal(blockCalls().length, beforeStale, 'unavailable data must invalidate open confirmation');
+  assert.equal(blockView.deviceList.textContent, '');
+  // Reverse completion must not resurrect controls after a newer failure.
+  let finishOldRead, finishNewRead;
+  replies.devices = new Promise(resolve => { finishOldRead = resolve; });
+  const oldRead = blockView.refresh();
+  replies.devices = new Promise(resolve => { finishNewRead = resolve; });
+  const newRead = blockView.refresh();
+  finishNewRead({ error: true }); await newRead;
+  finishOldRead({ devices: [eligible] }); await oldRead;
+  assert.equal(blockView.devicesAvailable, false);
+  assert.equal(blockView.deviceList.textContent, '');
+
+  replies.devices = { devices: [eligible] }; await blockView.refresh();
+  // Cancel/reopen cannot bypass the per-device lock while a request/readback is unresolved.
+  let finishBlock, finishReadback;
+  replies.block = new Promise(resolve => { finishBlock = resolve; });
+  await button(blockView.deviceList, 'Block').click();
+  confirmBlock = button(modalTree(), 'Disconnect and block');
+  const inFlight = confirmBlock.click({ currentTarget: confirmBlock });
+  const duringBlock = blockCalls().length;
+  assert(button(blockView.deviceList, 'Block').disabled);
+  await button(modalTree(), 'Cancel').click();
+  await button(blockView.deviceList, 'Block').click();
+  await confirmBlock.click({ currentTarget: confirmBlock });
+  assert.equal(blockCalls().length, duringBlock);
+  // Keep the per-device lock until the post-mutation snapshot is received.
+  replies.devices = new Promise(resolve => { finishReadback = resolve; });
+  finishBlock({ ok: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert(button(blockView.deviceList, 'Block').disabled, 'lock must include readback');
+  finishReadback({ devices: [{ ...eligible, desired_deny: true, block_allowed: false, policy_revision: 1 }] });
+  await inFlight;
+  assert(!button(blockView.deviceList, 'Block'));
+  assert(button(blockView.deviceList, 'Unblock'));
+  assert.equal(blockCalls().length, duringBlock);
+  replies.block = { ok: true };
+
   const events = Array.from({ length: 60 }, (_, i) => ({ at: '2026-01-01T00:00:00Z', kind: `event-${i}`, mac: `02:00:00:00:00:${String(i).padStart(2, '0')}` }));
   replies.history = { events }; const history = makeView('history'); const historyTree = history.render(await history.load());
   assert.deepEqual(calls.at(-1), ['history', [500]]);
@@ -238,7 +322,7 @@ function controls(tree) {
   assert([...controls(readTree).inputs, ...controls(readTree).buttons].every(e => e.disabled));
   const acl = JSON.parse(fs.readFileSync('luci/root/usr/share/rpcd/acl.d/luci-app-wifi-guard.json'))['luci-app-wifi-guard'];
   assert.deepEqual(acl.read.ubus['wifi-guard'].sort(), ['devices', 'history', 'settings']);
-  for (const action of ['rename', 'trust', 'unblock', 'configure', 'test']) {
+  for (const action of ['rename', 'trust', 'block', 'unblock', 'configure', 'test']) {
     assert(!acl.read.ubus['wifi-guard'].includes(action)); assert(acl.write.ubus['wifi-guard'].includes(action));
   }
   assert(!acl.read.uci && !acl.read.file);

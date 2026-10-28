@@ -23,7 +23,7 @@ func TestDevicesDerivesPendingFromRuntimeWithoutMutation(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		copy := v.(map[string]any)["devices"].([]devices.Device)[0]
+		copy := v.(map[string]any)["devices"].([]deviceView)[0].Device
 		if copy.PolicyPending != (status != [2]bool{true, true}) {
 			t.Fatalf("incorrect derived status: %v %+v", status, copy)
 		}

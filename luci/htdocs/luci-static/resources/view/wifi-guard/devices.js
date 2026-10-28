@@ -7,6 +7,7 @@
 var devices = rpc.declare({ object: 'wifi-guard', method: 'devices', expect: { '': {} } });
 var rename = rpc.declare({ object: 'wifi-guard', method: 'rename', params: ['mac', 'name'], expect: { '': {} } });
 var trust = rpc.declare({ object: 'wifi-guard', method: 'trust', params: ['mac', 'trust'], expect: { '': {} } });
+var block = rpc.declare({ object: 'wifi-guard', method: 'block', params: ['mac', 'revision', 'confirmed'], expect: { '': {} } });
 var unblock = rpc.declare({ object: 'wifi-guard', method: 'unblock', params: ['mac', 'revision'], expect: { '': {} } });
 function checked(result) {
 	if (!result || result.error) throw new Error(result && result.error ? result.error : _('WiFi Guard did not respond.'));
@@ -35,6 +36,34 @@ return view.extend({
 						.catch(function() { button.disabled = false; ui.addNotification(null, E('p', {}, [_('Rename failed. Use at most 80 characters without control characters.')]), 'error'); });
 				} }, [_('Save name')])])]);
 		input.focus();
+	},
+	confirmBlock: function(device) {
+		var self = this;
+		if (self.readonly || !self.devicesAvailable || device.block_allowed !== true || (self.blockInFlight || {})[device.mac]) return;
+		ui.showModal(_('Block Wi-Fi device'), [
+			E('p', {}, [device.friendly_name || device.hostname || _('Unnamed device'), ' — ', device.mac]),
+			E('p', {}, [_('Disconnect this device and deny its MAC on managed access points until manually unblocked? MAC addresses can be spoofed. Keep another router management connection available.')]),
+			E('button', { 'class': 'btn', click: ui.hideModal }, [_('Cancel')]), ' ',
+			E('button', { 'class': 'btn cbi-button-negative', click: function(event) {
+				if (event.currentTarget.disabled || (self.blockInFlight || {})[device.mac]) return;
+				var current = (self.currentDevices || []).find(function(d) { return d.mac === device.mac; });
+				if (self.readonly || !self.devicesAvailable || !current || current.block_allowed !== true || current.policy_revision !== device.policy_revision) {
+					ui.hideModal(); return self.refresh();
+				}
+				event.currentTarget.disabled = true;
+				self.blockInFlight = self.blockInFlight || {};
+				self.blockInFlight[device.mac] = true;
+				self.refreshSequence = (self.refreshSequence || 0) + 1;
+				self.filterDevices();
+				return block(device.mac, device.policy_revision || 0, true).then(checked).then(function(result) {
+					if (!result.ok || result.pending) throw new Error(_('Block was recorded, but application is not confirmed. Check policy status.'));
+					ui.addNotification(null, E('p', {}, [_('WiFi Guard MAC deny applied. The device must be manually unblocked to reconnect.')]), 'info');
+				}).catch(function(error) {
+					ui.addNotification(null, E('p', {}, [String(error.message || error), ' ', _('Read back policy status before retrying: the request may already have been saved.')]), 'error');
+				}).then(function() { ui.hideModal(); return self.refresh(); }).then(function() {
+					delete self.blockInFlight[device.mac]; self.filterDevices();
+				});
+			} }, [_('Disconnect and block')])]);
 	},
 	updateDevices: function(data) {
 		this.devicesAvailable = !data.error;
@@ -73,6 +102,14 @@ return view.extend({
 						return self.notify(trust(d.mac, d.trust === 'trusted' ? 'unknown' : 'trusted'), _('Trust updated. No network access policy was changed.'));
 					} }, [d.trust === 'trusted' ? _('Clear trust') : _('Trust')])
 				]));
+				if (!denied) {
+					var reason = d.block_reason === 'protected' ? _('Protected from blocking') :
+						(d.block_reason === 'disabled' ? _('Blocking is disabled on this router') :
+						(d.block_reason === 'pending' ? _('Policy operation pending') : _('Blocking unavailable')));
+					actions.appendChild(E('button', { 'class': 'btn cbi-button-negative', disabled: d.block_allowed === true && !(self.blockInFlight || {})[d.mac] ? null : true,
+						click: function() { self.confirmBlock(d); } }, [_('Block')]));
+					if (d.block_allowed !== true) actions.appendChild(E('small', {}, [' ', reason]));
+				}
 				if (d.desired_deny) actions.appendChild(E('button', { 'class': 'btn cbi-button-positive', click: function() {
 				ui.showModal(_('Remove WiFi Guard MAC deny'), [
 					E('p', {}, [d.mac, ' — ', _('Only WiFi Guard-owned rules will be removed. Independent administrator rules remain in force.')]),
@@ -95,7 +132,11 @@ return view.extend({
 		if (!list.length) table.appendChild(E('tr', {}, [E('td', { colspan: 5 }, [all.length ? _('No devices match the search or filter.') : _('No known Wi-Fi devices yet. Authorized clients will appear automatically.')])]));
 		this.deviceList.replaceChildren(table);
 	},
-	refresh: function() { var self = this; return this.load().then(function(data) { self.updateDevices(data); }); },
+	refresh: function() {
+		var self = this;
+		var sequence = self.refreshSequence = (self.refreshSequence || 0) + 1;
+		return this.load().then(function(data) { if (sequence === self.refreshSequence) self.updateDevices(data); });
+	},
 	render: function(data) {
 		var self = this;
 		this.readonly = !L.hasViewPermission();

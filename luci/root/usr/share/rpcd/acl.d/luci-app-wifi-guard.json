@@ -2,6 +2,6 @@
   "luci-app-wifi-guard": {
     "description": "Read Wi-Fi device state and configure WiFi Guard",
     "read": {"ubus": {"wifi-guard": ["devices", "history", "settings"]}},
-    "write": {"ubus": {"wifi-guard": ["rename", "trust", "unblock", "configure", "test"]}}
+    "write": {"ubus": {"wifi-guard": ["rename", "trust", "block", "unblock", "configure", "test"]}}
   }
 }

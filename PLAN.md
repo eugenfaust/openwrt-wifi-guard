@@ -52,4 +52,8 @@ The r5 LuCI package postinstall is intended to refresh rpcd and LuCI caches auto
 
 **Acceptance still open:** the new r5 installation/upgrade hooks and end-to-end LuCI-only workflow have not been live-tested on hardware. Local `make check smoke arm64`, minimum-Go tests, the full official SDK build and four sandbox hook tests against the emitted IPKs passed; these do not prove hardware installation. Verify installation order, automatic menu/RPC availability after refresh/login, monitor startup, preserved config/private state and untouched network services in an approved future hardware window before calling r5 router-verified. Do not reinterpret the existing r4 router checks as r5 results.
 
+## LuCI blocking — 0.3.0-r6, local work
+
+Add write-ACL-only confirmed block with expected revision, owner-side protection/enablement checks, computed per-device eligibility and the existing persistent policy worker. Devices shows a separate warning/confirmation and disabled reasons; uncertain results trigger readback, not automatic retry. Telegram settings are not prerequisites; existing protected identities remain protected. Matching daemon/LuCI packages are required. The new browser/router interaction and real target disconnect remain unverified; no live router mutation is part of this task.
+
 See docs/verification.md for executed checks and docs/security.md for explicit limits. Do not declare the full product acceptance closed while the above live gates remain open.

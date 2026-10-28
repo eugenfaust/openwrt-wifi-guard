@@ -12,11 +12,15 @@ Router-native detection of newly authorized Wi-Fi clients, Telegram alerts, and 
 - Versioned atomic registry, bounded history, batched flash writes and graceful shutdown.
 - Read-only DHCP hostname enrichment for known Wi-Fi clients. Display/search and Telegram use the operator-saved name first, then the hostname; hostname discovery never grants trust. Devices without a trust decision are labeled **Trust not set**.
 - Bounded asynchronous Telegram delivery, retries/backoff/timeouts, a labeled delivery test and restricted UCI settings.
-- Separate native LuCI Overview, Devices, History and Settings routes. Overview shows current authorized-client statistics and recent activity; Devices supports name/MAC/interface search and connection/trust/deny filters, rename/trust and confirmed unblock; History paginates the latest 500 events locally (25 per page); Settings retains token-safe save/test controls. Russian UI translations are included.
+- Separate native LuCI Overview, Devices, History and Settings routes. Overview shows current authorized-client statistics and recent activity; Devices supports name/MAC/interface search and connection/trust/deny filters, rename/trust and confirmed block/unblock; History paginates the latest 500 events locally (25 per page); Settings retains token-safe save/test controls. Russian UI translations are included.
 - Native rpcd authentication/ACL with a private 0600 Unix bridge; no generic exec/file/UCI access granted to limited roles.
 - Separate official-SDK `.ipk` packages for the daemon and LuCI, plus procd startup/reload/respawn.
 
 **Verified target:** Xiaomi AX3000T, OpenWrt 24.10.2, mediatek/filogic, `aarch64_cortex-a53`. Native installation, UI actions, access denial and package reinstall preserving data were tested. Real labeled-test and isolated automatic-notification receipts were confirmed by the operator; automated regression tests use a fake server. Wi-Fi/hostapd restarts and router reboot were deliberately not exercised on a live household Internet connection. See the detailed verification report rather than treating cross-compilation or CI configuration as hardware proof.
+
+## LuCI device blocking (0.3.0-r6)
+
+Open **Services → WiFi Guard → Devices → Block**, review the target and confirm **Disconnect and block**. This saves a persistent MAC deny using the same target-only policy backend as Telegram; Telegram polling/delivery need not be enabled. Blocking must be enabled by the administrator and protected MACs cannot be blocked. Disabled buttons explain why blocking is unavailable. Previously protected devices remain protected; this UI does not remove protections. Pending or uncertain results are not proof of enforcement. Use **Unblock** to remove only WiFi Guard-owned rules. Install both matching r6 packages; the new LuCI flow is locally tested, not router-verified.
 
 ## Install through LuCI — no SSH required
 

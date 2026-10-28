@@ -57,6 +57,7 @@ func Methods() map[string]map[string]any {
 		"devices": {}, "history": {"limit": 32}, "settings": {},
 		"rename": {"mac": "", "name": ""}, "trust": {"mac": "", "trust": ""},
 		"unblock":   {"mac": "", "revision": 0},
+		"block":     {"mac": "", "revision": 0, "confirmed": false},
 		"configure": {"enabled": true, "chat_id": "", "token": "", "clear_token": true}, "test": {},
 	}
 }

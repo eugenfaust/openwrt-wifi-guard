@@ -260,12 +260,42 @@ func (s *Service) acceptAction(c rpc.Command) (telegram.ActionResult, error, boo
 	}
 	return s.decisionResult(*d, text), nil, false
 }
-func (s *Service) startUnblock(c rpc.Command) {
-	var p struct {
-		MAC      string `json:"mac"`
-		Revision uint64 `json:"revision"`
+
+// blockReason is evaluated only on the registry owner. Empty means eligible;
+// uncertain durability and unavailable queue capacity always fail closed.
+func (s *Service) blockReason(d devices.Device) string {
+	if s.protected[d.MAC] {
+		return "protected"
 	}
-	if decode(c.Params, &p) != nil || s.policySet == nil || len(s.policyQueue) == cap(s.policyQueue) {
+	if !s.allowBlocking || s.policySet == nil {
+		return "disabled"
+	}
+	if d.DesiredDeny {
+		return "denied"
+	}
+	if s.decisionsUncertain || d.PolicyPending || s.policyActive[d.MAC] != 0 || d.PolicyRevision == ^uint64(0) || len(s.policyQueue) == cap(s.policyQueue) {
+		return "pending"
+	}
+	if d.PolicyRevision > 0 && s.policyStatus != nil {
+		desired, applied := s.policyStatus(d.MAC)
+		if desired != d.DesiredDeny || !applied {
+			return "pending"
+		}
+	}
+	return ""
+}
+
+// startPolicyChange shares the durable intent/worker path for public decisions.
+// Unblock stays available when blocking is disabled or the device is protected,
+// including removal of a failed/pending deny.
+func (s *Service) startPolicyChange(c rpc.Command) {
+	var p struct {
+		MAC       string  `json:"mac"`
+		Revision  *uint64 `json:"revision"`
+		Confirmed bool    `json:"confirmed"`
+	}
+	deny := c.Method == "block"
+	if decode(c.Params, &p) != nil || p.Revision == nil || (deny && !p.Confirmed) || s.policySet == nil || len(s.policyQueue) == cap(s.policyQueue) {
 		c.Reply <- rpc.Result{Err: errRequest}
 		return
 	}
@@ -275,25 +305,25 @@ func (s *Service) startUnblock(c rpc.Command) {
 		return
 	}
 	d := s.registry.State.Devices[mac]
-	if d == nil || s.policyActive[mac] != 0 || !d.DesiredDeny || d.PolicyRevision != p.Revision || d.PolicyRevision == ^uint64(0) {
+	if d == nil || s.policyActive[mac] != 0 || d.DesiredDeny == deny || d.PolicyRevision != *p.Revision || d.PolicyRevision == ^uint64(0) || (deny && s.blockReason(*d) != "") {
 		c.Reply <- rpc.Result{Err: errRequest}
 		return
 	}
-	if s.confirmDecisionDurability() != nil {
+	if c.Context.Err() != nil || s.confirmDecisionDurability() != nil || c.Context.Err() != nil {
 		c.Reply <- rpc.Result{Err: errRequest}
 		return
 	}
 	before := *d
 	history := append([]devices.Event(nil), s.registry.State.History...)
 	dirty, fresh := s.registry.Dirty, s.registry.Fresh
-	d.DesiredDeny = false
+	d.DesiredDeny = deny
 	d.PolicyRevision++
 	d.PolicyPending = true
 	d.ReviewNonce = 0
 	d.ReviewScope = ""
 	d.ReviewStage = ""
 	d.ReviewIssued = time.Time{}
-	if d.Trust == "blocked" {
+	if !deny && d.Trust == "blocked" {
 		d.Trust = "unknown"
 	}
 	s.registry.Dirty = true
@@ -301,7 +331,7 @@ func (s *Service) startUnblock(c rpc.Command) {
 		c.Reply <- rpc.Result{Err: err}
 		return
 	}
-	s.policyQueue <- policyJob{MAC: d.MAC, Revision: d.PolicyRevision, Deny: false, Reply: c.Reply}
+	s.policyQueue <- policyJob{MAC: d.MAC, Revision: d.PolicyRevision, Deny: deny, Reply: c.Reply}
 }
 func (s *Service) policySnapshot() ([]policyJob, error) {
 	if err := s.confirmDecisionDurability(); err != nil {

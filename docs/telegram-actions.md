@@ -15,6 +15,10 @@ Use a dedicated bot: Telegram does not offer a reliable advance check for anothe
 
 Callbacks have canonical compact chat-bound HMAC signatures derived from the bot credential, expiry and persistent per-review nonces. Sender and private chat must both equal the configured positive numeric chat ID. Credential changes invalidate old reviews. Confirmation generates a new nonce and expires separately; ordinary trust APIs cannot clear desired deny. Buttons are published only after successful persistence of the corresponding review.
 
+## Native LuCI block and recovery
+
+Starting with 0.3.0-r6, Devices offers Block with a separate target/warning confirmation and confirmed Unblock. Public `block` requires `mac`, expected `revision` and `confirmed: true`; it is write-ACL-only. The owner validates blocking enablement, protected identities and current revision before persisting intent and queuing the existing policy worker. Telegram credentials, outbound delivery and callback polling are not prerequisites. Device reads include computed `block_allowed` and `block_reason`; missing eligibility fails closed in the UI. Confirmation does not bypass server checks. On an uncertain response the UI refreshes policy state rather than claiming success or automatically retrying. Existing protected clients cannot be blocked until an administrator deliberately changes their protection outside this view. No real-device block is performed by the automated tests.
+
 ## Enabling controls (privileged operator)
 
 First install/test the new packages with controls disabled. Keep Ethernet/SSH/LuCI recovery available. Select administrative MACs explicitly; alternatively protect the entire existing registry as a conservative baseline, without calling those clients trusted. Never infer an administrator's MAC from a Telegram user ID. The sample MAC below is synthetic, not a device on your router.

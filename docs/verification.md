@@ -1,5 +1,13 @@
 # Verification report
 
+## LuCI confirmed blocking — 0.3.0-r6 (local only)
+
+The combined implementation passed `make check smoke arm64`, minimum Go 1.23 tests and the full official SDK `make packages` path. The emitted r6 IPKs passed all five packaging sandbox tests with `WIFI_GUARD_TEST_IPKS=build/packages`; control version/architecture/source and packaged Devices JS, write ACL and compiled Russian catalog were inspected against source. SDK missing-feed warnings and static-binary patchelf warnings did not prevent packaging; matching firmware feeds/dependencies remain required for installation.
+
+New Go tests exercise explicit confirmation and revision validation, protected/disabled/backend rejection before policy I/O, active/pending/overflow/full queue conditions, cancellation, persistence rollback/publication uncertainty, stale queued jobs, owner responsiveness and Telegram-independent block/recovery unblock. LuCI contract tests cover confirmation/cancel, no early mutation, duplicate clicks, stale or unavailable reads, disabled reasons, uncertain-result readback, write-only ACL and translation coverage. These use fake DOM/RPC and fake policy backends, not a rendered router browser or a physical-client disconnect.
+
+Both packages are `0.3.0-r6`; install daemon first and LuCI second. No router upgrade, live RPC schema/ACL check, rendered new modal, real target disconnect or reconnect was performed for this release. Existing r4 hardware results below remain historical, not r6 proof. Previously protected devices remain protected and cannot be blocked by this UI.
+
 ## Development checks
 
 Toolchain: Go 1.27.3 linux/amd64, downloaded from go.dev with its published SHA-256 verified. The declared minimum Go1.23.0 was also exercised. No third-party Go modules or CGO are required.
